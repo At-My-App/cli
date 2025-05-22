@@ -1,0 +1,273 @@
+import fg from "fast-glob";
+import {
+  Project,
+  SourceFile,
+  TypeAliasDeclaration,
+  ProjectOptions,
+  Node,
+} from "ts-morph";
+import * as ts from "typescript";
+import { resolve } from "path";
+import { generateSchema, getProgramFromFiles } from "typescript-json-schema";
+import { existsSync } from "fs";
+import { Logger } from "../logger";
+import { Content, ProcessingResult } from "../types/migrate";
+
+// Scans for TypeScript files based on config patterns
+export async function scanFiles(
+  patterns: string[],
+  logger: Logger
+): Promise<string[]> {
+  logger.info("🔍 Scanning files...");
+  logger.verbose_log(`Using patterns: ${patterns.join(", ")}`);
+
+  const files = await fg(patterns, {
+    ignore: ["**/node_modules/**", "**/test/**", "**/dist/**"],
+    absolute: true,
+    cwd: process.cwd(),
+  });
+
+  logger.verbose_log(`Found ${files.length} files matching patterns`);
+  return files;
+}
+
+// Creates and configures the TypeScript project
+export function createProject(
+  files: string[],
+  tsconfigPath: string,
+  logger: Logger
+): Project {
+  const resolvedTsConfigPath = resolve(process.cwd(), tsconfigPath);
+
+  if (!existsSync(resolvedTsConfigPath)) {
+    logger.warn(
+      `tsconfig at ${resolvedTsConfigPath} not found, using default compiler options`
+    );
+  } else {
+    logger.verbose_log(`Using tsconfig from ${resolvedTsConfigPath}`);
+  }
+
+  const projectOptions: ProjectOptions = {
+    tsConfigFilePath: existsSync(resolvedTsConfigPath)
+      ? resolvedTsConfigPath
+      : undefined,
+    skipAddingFilesFromTsConfig: true,
+    compilerOptions: !existsSync(resolvedTsConfigPath)
+      ? {
+          target: ts.ScriptTarget.ESNext,
+          module: ts.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.NodeJs,
+          esModuleInterop: true,
+          jsx: ts.JsxEmit.React,
+          skipLibCheck: true,
+        }
+      : undefined,
+  };
+
+  logger.verbose_log("Creating ts-morph Project");
+  const project = new Project(projectOptions);
+
+  logger.verbose_log(`Adding ${files.length} source files to project`);
+  project.addSourceFilesAtPaths(files);
+
+  return project;
+}
+
+// Extracts individual definition types from ATMYAPP array
+function extractDefinitionTypes(
+  atmyappType: TypeAliasDeclaration,
+  logger: Logger
+): string[] {
+  const typeNode = atmyappType.getTypeNode();
+
+  if (!Node.isTupleTypeNode(typeNode) && !Node.isArrayTypeNode(typeNode)) {
+    logger.warn(
+      `ATMYAPP export should be an array/tuple type in ${atmyappType.getSourceFile().getFilePath()}`
+    );
+    return [];
+  }
+
+  const elementTypes: string[] = [];
+
+  if (Node.isTupleTypeNode(typeNode)) {
+    // Handle tuple types: [Type1, Type2, ...]
+    typeNode.getElements().forEach((element) => {
+      const elementText = element.getText();
+      elementTypes.push(elementText);
+      logger.verbose_log(`Found definition type: ${elementText}`);
+    });
+  } else if (Node.isArrayTypeNode(typeNode)) {
+    // Handle array types: Type[]
+    const elementText = typeNode.getElementTypeNode().getText();
+    elementTypes.push(elementText);
+    logger.verbose_log(`Found definition type: ${elementText}`);
+  }
+
+  return elementTypes;
+}
+
+// Processes an ATMYAPP export to extract content definitions
+export function processAtmyappExport(
+  atmyappType: TypeAliasDeclaration,
+  file: SourceFile,
+  tsconfigPath: string,
+  logger: Logger
+): Content[] {
+  const contents: Content[] = [];
+
+  logger.verbose_log(`Processing ATMYAPP export in ${file.getFilePath()}`);
+
+  // Extract individual definition types from the array
+  const definitionTypes = extractDefinitionTypes(atmyappType, logger);
+
+  if (definitionTypes.length === 0) {
+    logger.warn(
+      `No definition types found in ATMYAPP export in ${file.getFilePath()}`
+    );
+    return contents;
+  }
+
+  const resolvedTsConfigPath = resolve(process.cwd(), tsconfigPath);
+  const compilerOptions = existsSync(resolvedTsConfigPath)
+    ? { configFile: resolvedTsConfigPath }
+    : {
+        target: ts.ScriptTarget.ES2015,
+        module: ts.ModuleKind.ESNext,
+        strict: true,
+        esModuleInterop: true,
+        skipLibCheck: true,
+        jsx: ts.JsxEmit.Preserve,
+      };
+
+  const program = getProgramFromFiles([file.getFilePath()], compilerOptions);
+
+  // Process each definition type
+  for (const definitionType of definitionTypes) {
+    try {
+      logger.verbose_log(
+        `Generating schema for definition type: ${definitionType}`
+      );
+
+      const schema = generateSchema(program, definitionType, {
+        required: true,
+        noExtraProps: true,
+        aliasRef: true,
+        ref: false,
+        defaultNumberType: "number",
+        ignoreErrors: true,
+        skipLibCheck: true,
+      });
+
+      if (!schema) {
+        logger.warn(`Failed to generate schema for ${definitionType}`);
+        continue;
+      }
+
+      if (!schema.properties) {
+        logger.warn(`Invalid schema structure for ${definitionType}`);
+        continue;
+      }
+
+      const properties = schema.properties as any;
+
+      // Extract path from AmaContentRef structure
+      let path: string | null = null;
+      let structure: any = null;
+
+      // Look for path in different possible locations
+      if (properties.path?.const) {
+        path = properties.path.const;
+      } else if (properties._path?.const) {
+        path = properties._path.const;
+      }
+
+      // Look for structure/data in different possible locations
+      if (properties.structure) {
+        structure = properties.structure;
+      } else if (properties.data) {
+        structure = properties.data;
+      } else if (properties._data) {
+        structure = properties._data;
+      }
+
+      if (!path) {
+        logger.warn(`Could not extract path from ${definitionType}`);
+        continue;
+      }
+
+      if (!structure) {
+        logger.warn(`Could not extract structure from ${definitionType}`);
+        continue;
+      }
+
+      logger.verbose_log(`Successfully extracted content: ${path}`);
+      contents.push({
+        path,
+        structure,
+      });
+    } catch (err) {
+      logger.error(`Error processing definition type ${definitionType}:`, err);
+    }
+  }
+
+  return contents;
+}
+
+// Processes all files to extract contents
+export function processFiles(
+  sourceFiles: SourceFile[],
+  tsconfigPath: string,
+  continueOnError: boolean,
+  logger: Logger
+): ProcessingResult {
+  const contents: Content[] = [];
+  const errors: string[] = [];
+  let successCount = 0;
+  let failureCount = 0;
+
+  logger.info(`📚 Processing ${sourceFiles.length} source files...`);
+
+  sourceFiles.forEach((file) => {
+    logger.verbose_log(`Examining file: ${file.getFilePath()}`);
+
+    // Look for exported ATMYAPP type aliases
+    const atmyappExports = file.getTypeAliases().filter((alias) => {
+      const name = alias.getName();
+      const isExported = alias.isExported();
+      return name === "ATMYAPP" && isExported;
+    });
+
+    logger.verbose_log(
+      `Found ${atmyappExports.length} ATMYAPP exports in ${file.getFilePath()}`
+    );
+
+    atmyappExports.forEach((atmyappExport) => {
+      try {
+        const fileContents = processAtmyappExport(
+          atmyappExport,
+          file,
+          tsconfigPath,
+          logger
+        );
+        contents.push(...fileContents);
+        successCount += fileContents.length;
+        logger.verbose_log(
+          `Successfully processed ${fileContents.length} definitions from ATMYAPP export`
+        );
+      } catch (err) {
+        failureCount++;
+        const errorMessage = `❌ ${file.getFilePath()} - ATMYAPP export - ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`;
+        errors.push(errorMessage);
+        logger.error(errorMessage);
+
+        if (!continueOnError) {
+          throw err;
+        }
+      }
+    });
+  });
+
+  return { contents, errors, successCount, failureCount };
+}

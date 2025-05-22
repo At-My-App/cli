@@ -4,8 +4,11 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "build": "tsc",
+    "build:test": "tsc && npm test"
   },
   "repository": {
     "type": "git",
@@ -25,11 +28,15 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@atmyapp/core": "^0.0.3",
+    "@types/jest": "^29.5.14",
     "@typescript-eslint/eslint-plugin": "^8.32.1",
     "@typescript-eslint/parser": "^8.32.1",
     "eslint": "^9.27.0",
     "eslint-config-prettier": "^10.1.5",
+    "jest": "^29.7.0",
     "prettier": "^3.5.3",
+    "ts-jest": "^29.3.4",
     "typescript": "^5.8.3"
   },
   "dependencies": {
