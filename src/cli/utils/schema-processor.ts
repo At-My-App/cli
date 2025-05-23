@@ -170,41 +170,101 @@ export function processAtmyappExport(
 
       const properties = schema.properties as any;
 
-      // Extract path from AmaContentRef structure
-      let path: string | null = null;
-      let structure: any = null;
+      // Check if this is an event definition
+      const isEventDef =
+        properties.type?.const === "event" ||
+        (properties.__is_ATMYAPP_Object?.const === true &&
+          properties.id &&
+          properties.columns);
 
-      // Look for path in different possible locations
-      if (properties.path?.const) {
-        path = properties.path.const;
-      } else if (properties._path?.const) {
-        path = properties._path.const;
+      if (isEventDef) {
+        // Handle AmaEventDef - use id as path and extract event structure
+        let eventId: string | null = null;
+        let columns: string[] = [];
+
+        // Extract event ID
+        if (properties.id?.const) {
+          eventId = properties.id.const;
+        }
+
+        // Extract columns
+        if (properties.columns?.const) {
+          columns = properties.columns.const;
+        } else if (properties.columns?.items?.const) {
+          columns = properties.columns.items.const;
+        } else if (
+          properties.columns?.items &&
+          Array.isArray(properties.columns.items)
+        ) {
+          // Handle array of const items - extract const value from each item
+          columns = properties.columns.items
+            .map((item: any) => item.const)
+            .filter(Boolean);
+        }
+
+        if (!eventId) {
+          logger.warn(`Could not extract event ID from ${definitionType}`);
+          continue;
+        }
+
+        if (columns.length === 0) {
+          logger.warn(`Could not extract columns from ${definitionType}`);
+          continue;
+        }
+
+        logger.verbose_log(
+          `Successfully extracted event: ${eventId} with columns: ${columns.join(", ")}`
+        );
+
+        // Create event content with special structure
+        contents.push({
+          path: eventId, // Use event ID as path
+          structure: {
+            type: "event",
+            properties: {
+              id: { const: eventId },
+              columns: { const: columns },
+              type: { const: "event" },
+            },
+          },
+        });
+      } else {
+        // Handle regular AmaContentDef - extract path and structure
+        let path: string | null = null;
+        let structure: any = null;
+
+        // Look for path in different possible locations
+        if (properties.path?.const) {
+          path = properties.path.const;
+        } else if (properties._path?.const) {
+          path = properties._path.const;
+        }
+
+        // Look for structure/data in different possible locations
+        if (properties.structure) {
+          structure = properties.structure;
+        } else if (properties.data) {
+          structure = properties.data;
+        } else if (properties._data) {
+          structure = properties._data;
+        }
+
+        if (!path) {
+          logger.warn(`Could not extract path from ${definitionType}`);
+          continue;
+        }
+
+        if (!structure) {
+          logger.warn(`Could not extract structure from ${definitionType}`);
+          continue;
+        }
+
+        logger.verbose_log(`Successfully extracted content: ${path}`);
+        contents.push({
+          path,
+          structure,
+        });
       }
-
-      // Look for structure/data in different possible locations
-      if (properties.structure) {
-        structure = properties.structure;
-      } else if (properties.data) {
-        structure = properties.data;
-      } else if (properties._data) {
-        structure = properties._data;
-      }
-
-      if (!path) {
-        logger.warn(`Could not extract path from ${definitionType}`);
-        continue;
-      }
-
-      if (!structure) {
-        logger.warn(`Could not extract structure from ${definitionType}`);
-        continue;
-      }
-
-      logger.verbose_log(`Successfully extracted content: ${path}`);
-      contents.push({
-        path,
-        structure,
-      });
     } catch (err) {
       logger.error(`Error processing definition type ${definitionType}:`, err);
     }
