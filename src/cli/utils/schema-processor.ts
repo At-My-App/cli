@@ -106,6 +106,85 @@ function extractDefinitionTypes(
   return elementTypes;
 }
 
+// Extract event information directly from TypeScript AST
+function extractEventInfoFromAST(
+  file: SourceFile,
+  definitionType: string,
+  logger: Logger
+): { id: string; columns: string[] } | null {
+  try {
+    // Find the type alias declaration for this definition type
+    const typeAlias = file.getTypeAlias(definitionType);
+    if (!typeAlias) {
+      logger.verbose_log(`Could not find type alias for ${definitionType}`);
+      return null;
+    }
+
+    const typeNode = typeAlias.getTypeNode();
+    if (!typeNode) {
+      logger.verbose_log(`Type alias ${definitionType} has no type node`);
+      return null;
+    }
+
+    // Check if this is a type reference (like AmaCustomEventDef<...>)
+    if (Node.isTypeReference(typeNode)) {
+      const typeName = typeNode.getTypeName();
+      const typeArguments = typeNode.getTypeArguments();
+
+      // Check if this is AmaCustomEventDef
+      if (
+        Node.isIdentifier(typeName) &&
+        typeName.getText() === "AmaCustomEventDef"
+      ) {
+        if (typeArguments.length >= 2) {
+          // First argument should be the event ID (string literal)
+          const idArg = typeArguments[0];
+          let eventId: string | null = null;
+
+          if (Node.isLiteralTypeNode(idArg)) {
+            const literal = idArg.getLiteral();
+            if (Node.isStringLiteral(literal)) {
+              eventId = literal.getLiteralValue();
+            }
+          }
+
+          // Second argument should be the columns (tuple of string literals)
+          const columnsArg = typeArguments[1];
+          let columns: string[] = [];
+
+          if (Node.isTupleTypeNode(columnsArg)) {
+            columnsArg.getElements().forEach((element) => {
+              if (Node.isLiteralTypeNode(element)) {
+                const literal = element.getLiteral();
+                if (Node.isStringLiteral(literal)) {
+                  columns.push(literal.getLiteralValue());
+                }
+              }
+            });
+          }
+
+          if (eventId && columns.length > 0) {
+            logger.verbose_log(
+              `AST extraction successful for ${definitionType}: id=${eventId}, columns=[${columns.join(", ")}]`
+            );
+            return { id: eventId, columns };
+          }
+        }
+      }
+    }
+
+    logger.verbose_log(
+      `Failed to extract event info from AST for ${definitionType}`
+    );
+    return null;
+  } catch (error) {
+    logger.verbose_log(
+      `Error during AST extraction for ${definitionType}: ${error}`
+    );
+    return null;
+  }
+}
+
 // Processes an ATMYAPP export to extract content definitions
 export function processAtmyappExport(
   atmyappType: TypeAliasDeclaration,
@@ -164,11 +243,42 @@ export function processAtmyappExport(
       }
 
       if (!schema.properties) {
+        // For event definitions, the schema generator might fail due to generics
+        // Try to extract event information directly from the TypeScript AST
+        logger.verbose_log(
+          `Schema has no properties. Attempting AST-based extraction for ${definitionType}`
+        );
+
+        // Try to extract event definition from TypeScript AST
+        const eventInfo = extractEventInfoFromAST(file, definitionType, logger);
+        if (eventInfo) {
+          logger.verbose_log(
+            `Successfully extracted event via AST: ${eventInfo.id} with columns: ${eventInfo.columns.join(", ")}`
+          );
+          contents.push({
+            path: eventInfo.id,
+            structure: {
+              type: "event",
+              properties: {
+                id: { const: eventInfo.id },
+                columns: { const: eventInfo.columns },
+                type: { const: "event" },
+              },
+            },
+          });
+          continue;
+        }
+
         logger.warn(`Invalid schema structure for ${definitionType}`);
         continue;
       }
 
       const properties = schema.properties as any;
+
+      // Debug: Log the actual schema structure
+      logger.verbose_log(
+        `Schema for ${definitionType}: ${JSON.stringify(properties, null, 2)}`
+      );
 
       // Check if this is an event definition
       const isEventDef =
@@ -182,12 +292,17 @@ export function processAtmyappExport(
         let eventId: string | null = null;
         let columns: string[] = [];
 
-        // Extract event ID
+        // Extract event ID - try different possible structures
         if (properties.id?.const) {
           eventId = properties.id.const;
+        } else if (properties.id?.enum && properties.id.enum.length === 1) {
+          eventId = properties.id.enum[0];
+        } else if (properties.id?.type === "string" && properties.id?.title) {
+          // Fallback: try to extract from title or other metadata
+          eventId = properties.id.title;
         }
 
-        // Extract columns
+        // Extract columns - try different possible structures
         if (properties.columns?.const) {
           columns = properties.columns.const;
         } else if (properties.columns?.items?.const) {
@@ -200,7 +315,21 @@ export function processAtmyappExport(
           columns = properties.columns.items
             .map((item: any) => item.const)
             .filter(Boolean);
+        } else if (properties.columns?.items?.enum) {
+          // Handle tuple type where each position has enum with single value
+          columns = properties.columns.items.enum;
+        } else if (
+          properties.columns?.enum &&
+          Array.isArray(properties.columns.enum[0])
+        ) {
+          // Handle case where columns is an enum with array values
+          columns = properties.columns.enum[0];
         }
+
+        // Debug: Log what we extracted
+        logger.verbose_log(
+          `Extracted from ${definitionType}: eventId=${eventId}, columns=${JSON.stringify(columns)}`
+        );
 
         if (!eventId) {
           logger.warn(`Could not extract event ID from ${definitionType}`);

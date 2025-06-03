@@ -17,7 +17,7 @@ interface FileContent {
 }
 
 // Cache for TypeScript programs to avoid recompilation
-const programCache = new Map<string, ts.Program>();
+const programCache = new Map<string, any>();
 
 // Optimized function to process a single file in a worker
 export async function processFileInWorker(
@@ -104,14 +104,14 @@ async function processAtmyappExportOptimized(
           jsx: ts.JsxEmit.Preserve,
         };
 
-    program = getProgramFromFiles([filePath], compilerOptions);
+    program = getProgramFromFiles([filePath], compilerOptions) as any;
     programCache.set(cacheKey, program);
   }
 
   // Batch process all definition types for this file
   const schemaPromises = definitionTypes.map(async (definitionType) => {
     try {
-      const schema = generateSchema(program!, definitionType, {
+      const schema = generateSchema(program as any, definitionType, {
         required: true,
         noExtraProps: true,
         aliasRef: true,
