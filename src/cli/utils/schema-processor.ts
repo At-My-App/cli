@@ -178,7 +178,7 @@ export function processAtmyappExport(
           properties.columns);
 
       if (isEventDef) {
-        // Handle AmaEventDef - use id as path and extract event structure
+        // Handle AmaCustomEventDef - use id as path and extract event structure
         let eventId: string | null = null;
         let columns: string[] = [];
 

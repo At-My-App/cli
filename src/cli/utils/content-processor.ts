@@ -25,7 +25,7 @@ export function determineContentType(content: Content): string {
   if (
     content.structure?.type === "event" ||
     content.structure?.properties?.type?.const === "event" ||
-    content.structure?.__amatype === "AmaEventDef"
+    content.structure?.__amatype === "AmaCustomEventDef"
   ) {
     return "event";
   }

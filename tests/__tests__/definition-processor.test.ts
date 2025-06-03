@@ -180,7 +180,7 @@ describe("Definition Processor", () => {
         expect(result?.type).toBe("image");
       });
 
-      it("should detect event type for AmaEventDef", () => {
+      it("should detect event type for AmaCustomEventDef", () => {
         const content: Content = {
           path: "click_event",
           structure: {

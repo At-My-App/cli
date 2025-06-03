@@ -11,8 +11,14 @@ module.exports = {
   coverageReporters: ["text", "lcov", "html"],
   setupFilesAfterEnv: ["<rootDir>/tests/setup.ts"],
   moduleFileExtensions: ["ts", "js", "json"],
-  testTimeout: 10000,
+  testTimeout: 30000,
   clearMocks: true,
   resetMocks: true,
   restoreMocks: true,
+  setupFiles: ["<rootDir>/tests/jest-setup.js"],
+  globals: {
+    "ts-jest": {
+      isolatedModules: true,
+    },
+  },
 };

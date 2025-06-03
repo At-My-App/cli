@@ -1,19 +1,19 @@
-import { AmaEventDef } from "@atmyapp/core";
+import { AmaCustomEventDef } from "@atmyapp/core";
 
 // Define event types for analytics tracking
-export type PageViewEvent = AmaEventDef<
+export type PageViewEvent = AmaCustomEventDef<
   "page_view",
   ["page", "referrer", "timestamp", "user_id"]
 >;
-export type ClickEvent = AmaEventDef<
+export type ClickEvent = AmaCustomEventDef<
   "button_click",
   ["element", "position", "timestamp"]
 >;
-export type PurchaseEvent = AmaEventDef<
+export type PurchaseEvent = AmaCustomEventDef<
   "purchase",
   ["product_id", "amount", "currency", "user_id", "timestamp"]
 >;
-export type SearchEvent = AmaEventDef<
+export type SearchEvent = AmaCustomEventDef<
   "search",
   ["query", "results_count", "timestamp"]
 >;
