@@ -218,6 +218,8 @@ export const builtInProcessors = {
         content.structure?.__amatype === "AmaCustomEventDef"
       ) {
         content.type = "event";
+      } else if (content.structure?.__amatype === "AmaIconDef") {
+        content.type = "icon";
       } else if (content.structure?.__amatype === "AmaImageDef") {
         content.type = "image";
       } else if (content.structure?.__amatype === "AmaFileDef") {

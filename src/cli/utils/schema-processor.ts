@@ -126,48 +126,69 @@ function extractEventInfoFromAST(
       return null;
     }
 
-    // Check if this is a type reference (like AmaCustomEventDef<...>)
+    // Check if this is a type reference (like AmaCustomEventDef<...> or AmaEventDef<...>)
     if (Node.isTypeReference(typeNode)) {
       const typeName = typeNode.getTypeName();
       const typeArguments = typeNode.getTypeArguments();
 
-      // Check if this is AmaCustomEventDef
-      if (
-        Node.isIdentifier(typeName) &&
-        typeName.getText() === "AmaCustomEventDef"
-      ) {
-        if (typeArguments.length >= 2) {
-          // First argument should be the event ID (string literal)
-          const idArg = typeArguments[0];
-          let eventId: string | null = null;
+      // Check if this is AmaCustomEventDef or AmaEventDef
+      if (Node.isIdentifier(typeName)) {
+        const typeNameText = typeName.getText();
 
-          if (Node.isLiteralTypeNode(idArg)) {
-            const literal = idArg.getLiteral();
-            if (Node.isStringLiteral(literal)) {
-              eventId = literal.getLiteralValue();
+        if (typeNameText === "AmaCustomEventDef") {
+          if (typeArguments.length >= 2) {
+            // First argument should be the event ID (string literal)
+            const idArg = typeArguments[0];
+            let eventId: string | null = null;
+
+            if (Node.isLiteralTypeNode(idArg)) {
+              const literal = idArg.getLiteral();
+              if (Node.isStringLiteral(literal)) {
+                eventId = literal.getLiteralValue();
+              }
+            }
+
+            // Second argument should be the columns (tuple of string literals)
+            const columnsArg = typeArguments[1];
+            let columns: string[] = [];
+
+            if (Node.isTupleTypeNode(columnsArg)) {
+              columnsArg.getElements().forEach((element) => {
+                if (Node.isLiteralTypeNode(element)) {
+                  const literal = element.getLiteral();
+                  if (Node.isStringLiteral(literal)) {
+                    columns.push(literal.getLiteralValue());
+                  }
+                }
+              });
+            }
+
+            if (eventId && columns.length > 0) {
+              logger.verbose_log(
+                `AST extraction successful for ${definitionType}: id=${eventId}, columns=[${columns.join(", ")}]`
+              );
+              return { id: eventId, columns };
             }
           }
+        } else if (typeNameText === "AmaEventDef") {
+          // Handle AmaEventDef (basic events) - only has ID argument
+          if (typeArguments.length >= 1) {
+            const idArg = typeArguments[0];
+            let eventId: string | null = null;
 
-          // Second argument should be the columns (tuple of string literals)
-          const columnsArg = typeArguments[1];
-          let columns: string[] = [];
-
-          if (Node.isTupleTypeNode(columnsArg)) {
-            columnsArg.getElements().forEach((element) => {
-              if (Node.isLiteralTypeNode(element)) {
-                const literal = element.getLiteral();
-                if (Node.isStringLiteral(literal)) {
-                  columns.push(literal.getLiteralValue());
-                }
+            if (Node.isLiteralTypeNode(idArg)) {
+              const literal = idArg.getLiteral();
+              if (Node.isStringLiteral(literal)) {
+                eventId = literal.getLiteralValue();
               }
-            });
-          }
+            }
 
-          if (eventId && columns.length > 0) {
-            logger.verbose_log(
-              `AST extraction successful for ${definitionType}: id=${eventId}, columns=[${columns.join(", ")}]`
-            );
-            return { id: eventId, columns };
+            if (eventId) {
+              logger.verbose_log(
+                `AST extraction successful for basic event ${definitionType}: id=${eventId}`
+              );
+              return { id: eventId, columns: [] }; // Basic events have no predefined columns
+            }
           }
         }
       }
@@ -283,12 +304,13 @@ export function processAtmyappExport(
       // Check if this is an event definition
       const isEventDef =
         properties.type?.const === "event" ||
+        properties.type?.const === "basic_event" ||
         (properties.__is_ATMYAPP_Object?.const === true &&
           properties.id &&
-          properties.columns);
+          (properties.columns || properties.type?.const === "basic_event"));
 
       if (isEventDef) {
-        // Handle AmaCustomEventDef - use id as path and extract event structure
+        // Handle AmaCustomEventDef and AmaEventDef - use id as path and extract event structure
         let eventId: string | null = null;
         let columns: string[] = [];
 
@@ -303,6 +325,7 @@ export function processAtmyappExport(
         }
 
         // Extract columns - try different possible structures
+        // For basic events, columns might not exist (they use Record<string, string>)
         if (properties.columns?.const) {
           columns = properties.columns.const;
         } else if (properties.columns?.items?.const) {
@@ -336,24 +359,26 @@ export function processAtmyappExport(
           continue;
         }
 
-        if (columns.length === 0) {
+        // For basic events, empty columns array is acceptable
+        const isBasicEvent = properties.type?.const === "basic_event";
+        if (columns.length === 0 && !isBasicEvent) {
           logger.warn(`Could not extract columns from ${definitionType}`);
           continue;
         }
 
         logger.verbose_log(
-          `Successfully extracted event: ${eventId} with columns: ${columns.join(", ")}`
+          `Successfully extracted ${isBasicEvent ? "basic " : ""}event: ${eventId}${columns.length > 0 ? ` with columns: ${columns.join(", ")}` : ""}`
         );
 
         // Create event content with special structure
         contents.push({
           path: eventId, // Use event ID as path
           structure: {
-            type: "event",
+            type: isBasicEvent ? "basic_event" : "event",
             properties: {
               id: { const: eventId },
               columns: { const: columns },
-              type: { const: "event" },
+              type: { const: isBasicEvent ? "basic_event" : "event" },
             },
           },
         });

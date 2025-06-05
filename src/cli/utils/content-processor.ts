@@ -21,13 +21,21 @@ export function determineContentType(content: Content): string {
   // Extract file extension
   const fileExt = content.path.split(".").pop()?.toLowerCase();
 
-  // Check for event types
+  // Check for event types - support both custom events and basic events
   if (
     content.structure?.type === "event" ||
+    content.structure?.type === "basic_event" ||
     content.structure?.properties?.type?.const === "event" ||
-    content.structure?.__amatype === "AmaCustomEventDef"
+    content.structure?.properties?.type?.const === "basic_event" ||
+    content.structure?.__amatype === "AmaCustomEventDef" ||
+    content.structure?.__amatype === "AmaEventDef"
   ) {
     return "event";
+  }
+
+  // Check for icon types based on structure
+  if (content.structure?.__amatype === "AmaIconDef") {
+    return "icon";
   }
 
   // Check for image types based on structure or extension
@@ -67,7 +75,9 @@ function extractEventConfig(content: Content): EventConfig | null {
       eventId = content.structure.id;
     }
 
-    if (columns.length > 0) {
+    // For basic events, columns might be empty (they use Record<string, string>)
+    // So we allow empty columns array for basic events
+    if (eventId) {
       return { columns };
     }
   } catch (error) {

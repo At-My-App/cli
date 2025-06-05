@@ -275,6 +275,21 @@ export type UserManual = AmaFileDef<"/docs/manual.pdf">;
 export type ATMYAPP = [HeroImage, UserManual];
 ```
 
+### Icon Definitions
+
+Define icons with `AmaIconDef` (simpler than images, no configuration needed):
+
+```typescript
+import { AmaIconDef } from "@atmyapp/core";
+
+// Icon definitions
+export type MenuIcon = AmaIconDef<"/icons/menu">;
+export type SearchIcon = AmaIconDef<"/icons/search">;
+export type UserIcon = AmaIconDef<"/icons/user">;
+
+export type ATMYAPP = [MenuIcon, SearchIcon, UserIcon];
+```
+
 ## 💡 Examples
 
 ### 🏪 E-commerce Setup
@@ -305,6 +320,11 @@ export type ProductImage = AmaImageDef<
   }
 >;
 
+// UI Icons
+export type CartIcon = AmaIconDef<"/icons/cart">;
+export type WishlistIcon = AmaIconDef<"/icons/wishlist">;
+export type CompareIcon = AmaIconDef<"/icons/compare">;
+
 // E-commerce events
 export type ProductViewEvent = AmaCustomEventDef<
   "product_view",
@@ -326,6 +346,9 @@ export type ATMYAPP = [
   ProductCatalog,
   FeaturedProduct,
   ProductImage,
+  CartIcon,
+  WishlistIcon,
+  CompareIcon,
   ProductViewEvent,
   AddToCartEvent,
   PurchaseEvent,
@@ -336,7 +359,12 @@ export type ATMYAPP = [
 
 ```typescript
 // types/blog.ts
-import { AmaContentDef, AmaCustomEventDef, AmaImageDef } from "@atmyapp/core";
+import {
+  AmaContentDef,
+  AmaCustomEventDef,
+  AmaImageDef,
+  AmaIconDef,
+} from "@atmyapp/core";
 
 // Blog content types
 interface BlogPost {
@@ -375,6 +403,11 @@ export type BlogHeroImage = AmaImageDef<
   }
 >;
 
+// Blog UI icons
+export type ShareIcon = AmaIconDef<"/icons/share">;
+export type LikeIcon = AmaIconDef<"/icons/like">;
+export type CommentIcon = AmaIconDef<"/icons/comment">;
+
 // Blog analytics events
 export type ArticleReadEvent = AmaCustomEventDef<
   "article_read",
@@ -396,6 +429,9 @@ export type ATMYAPP = [
   FeaturedPost,
   Categories,
   BlogHeroImage,
+  ShareIcon,
+  LikeIcon,
+  CommentIcon,
   ArticleReadEvent,
   CommentEvent,
   ShareEvent,
@@ -462,7 +498,8 @@ your-project/
 ├── types/
 │   ├── content.ts         # Content definitions
 │   ├── events.ts          # Event definitions
-│   └── media.ts           # Image/file definitions
+│   ├── media.ts           # Image/file definitions
+│   └── icons.ts           # Icon definitions
 ├── .gitignore             # Updated automatically
 └── tsconfig.json          # TypeScript config
 ```
@@ -520,7 +557,7 @@ uploadDefinitions(output)
 ### Built-in Processors
 
 - **pathNormalizer** - Normalizes file paths across platforms
-- **typeDetector** - Detects content, event, image, and file types
+- **typeDetector** - Detects content, event, image, file, and icon types
 - **duplicateValidator** - Prevents duplicate path definitions
 - **metadataEnricher** - Adds processing metadata to output
 
@@ -585,35 +622,17 @@ tests/
 ### Example Test
 
 ```typescript
-describe("Event Processing", () => {
-  it("should separate events from regular definitions", () => {
+describe("Icon Processing", () => {
+  it("should detect and process icon definitions", () => {
     const contents: Content[] = [
       {
-        path: "hero.json",
-        structure: { title: "Hero" },
-      },
-      {
-        path: "page_view_event",
-        structure: {
-          type: "event",
-          properties: {
-            id: { const: "page_view" },
-            columns: { const: ["page", "user_id", "timestamp"] },
-            type: { const: "event" },
-          },
-        },
+        path: "/icons/menu",
+        structure: { __amatype: "AmaIconDef" },
       },
     ];
 
-    const output = generateOutput(contents, {}, mockLogger);
-
-    expect(output.definitions["hero.json"]).toBeDefined();
-    expect(output.events["page_view"]).toBeDefined();
-    expect(output.events["page_view"]).toHaveProperty("columns", [
-      "page",
-      "user_id",
-      "timestamp",
-    ]);
+    const contentType = determineContentType(contents[0]);
+    expect(contentType).toBe("icon");
   });
 });
 ```
@@ -625,13 +644,13 @@ describe("Event Processing", () => {
 ✅ **Do:**
 
 - Group related definitions in separate files
-- Use descriptive type names
+- Use descriptive type names for icons (e.g., `MenuIcon`, `SearchIcon`)
 - Keep event column order consistent
 - Include comprehensive type documentation
 
 ❌ **Don't:**
 
-- Mix content and event definitions unnecessarily
+- Mix content, event, and media definitions unnecessarily
 - Use dynamic or computed type names
 - Ignore TypeScript compiler errors
 

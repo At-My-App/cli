@@ -138,9 +138,10 @@ async function processAtmyappExportOptimized(
     const properties = result.schema.properties as any;
     const isEventDef =
       properties.type?.const === "event" ||
+      properties.type?.const === "basic_event" ||
       (properties.__is_ATMYAPP_Object?.const === true &&
         properties.id &&
-        properties.columns);
+        (properties.columns || properties.type?.const === "basic_event"));
 
     if (isEventDef) {
       // Handle event definitions
@@ -198,7 +199,7 @@ function processEventDefinition(
     eventId = properties.id.const;
   }
 
-  // Extract columns
+  // Extract columns (may be empty for basic events)
   if (properties.columns?.const) {
     columns = properties.columns.const;
   } else if (properties.columns?.items?.const) {
@@ -212,18 +213,27 @@ function processEventDefinition(
       .filter(Boolean);
   }
 
-  if (!eventId || columns.length === 0) {
+  // Check if this is a basic event
+  const isBasicEvent = properties.type?.const === "basic_event";
+
+  // For basic events, we don't require columns, but we still need an event ID
+  if (!eventId) {
+    return null;
+  }
+
+  // For custom events, we require columns, but for basic events columns can be empty
+  if (!isBasicEvent && columns.length === 0) {
     return null;
   }
 
   return {
     path: eventId,
     structure: {
-      type: "event",
+      type: isBasicEvent ? "basic_event" : "event",
       properties: {
         id: { const: eventId },
         columns: { const: columns },
-        type: { const: "event" },
+        type: { const: isBasicEvent ? "basic_event" : "event" },
       },
     },
   };
