@@ -28,7 +28,7 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "@atmyapp/core": "^0.0.5",
+    "@atmyapp/core": "^0.0.6",
     "@types/jest": "^29.5.14",
     "@typescript-eslint/eslint-plugin": "^8.32.1",
     "@typescript-eslint/parser": "^8.32.1",
