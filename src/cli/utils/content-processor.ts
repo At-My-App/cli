@@ -21,6 +21,10 @@ export function determineContentType(content: Content): string {
   // Extract file extension
   const fileExt = content.path.split(".").pop()?.toLowerCase();
 
+  if (content.type === "collection") {
+    return "collection";
+  }
+
   // Check for event types - support both custom events and basic events
   if (
     content.structure?.type === "event" ||

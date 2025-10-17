@@ -1,5 +1,9 @@
 import { Logger } from "../logger";
 import { Content, OutputDefinition } from "../types/migrate";
+import {
+  convertAmaCollectionStructure,
+  isAmaCollectionStructure,
+} from "./collection-transformer";
 
 // Definition processing pipeline interfaces
 export interface DefinitionProcessor {
@@ -208,6 +212,13 @@ export const builtInProcessors = {
     process: (content: Content, context: ProcessingContext): Content => {
       const { logger } = context;
 
+      if (content.type) {
+        logger.verbose_log(
+          `Preserving pre-detected type "${content.type}" for ${content.path}`
+        );
+        return content;
+      }
+
       // Extract file extension
       const fileExt = content.path.split(".").pop()?.toLowerCase();
 
@@ -259,6 +270,36 @@ export const builtInProcessors = {
       }
 
       return content;
+    },
+  } as DefinitionProcessor,
+
+  collectionStructureConverter: {
+    name: "collection-structure-converter",
+    process: (content: Content, context: ProcessingContext): Content | null => {
+      const { logger } = context;
+
+      if (!isAmaCollectionStructure(content.structure)) {
+        return content;
+      }
+
+      const converted = convertAmaCollectionStructure(
+        content.path,
+        content.structure,
+        logger
+      );
+
+      if (!converted) {
+        logger.warn(
+          `Skipping definition "${content.path}" due to collection conversion errors.`
+        );
+        return null;
+      }
+
+      return {
+        ...content,
+        type: "collection",
+        structure: converted,
+      };
     },
   } as DefinitionProcessor,
 };
@@ -353,6 +394,7 @@ export const builtInOutputTransformers = {
 // Helper functions to register built-in components
 export function registerBuiltInProcessors(): void {
   definitionPipeline.addProcessor(builtInProcessors.pathNormalizer);
+  definitionPipeline.addProcessor(builtInProcessors.collectionStructureConverter);
   definitionPipeline.addProcessor(builtInProcessors.typeDetector);
 }
 
