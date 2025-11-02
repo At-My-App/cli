@@ -67,16 +67,16 @@ export function migrateCommand(): Command {
       const logger = new Logger(options.verbose);
 
       try {
-        logger.info("🚀 Starting migration process");
+        logger.info("Starting migration process.");
         logger.verbose_log(`Options: ${JSON.stringify(options)}`);
 
         if (options.parallel) {
-          logger.info("⚡ Parallel processing enabled");
+          logger.info("Parallel processing enabled.");
           if (options.maxWorkers) {
-            logger.info(`👥 Using ${options.maxWorkers} worker threads`);
+            logger.info(`Using ${options.maxWorkers} worker threads.`);
           }
         } else {
-          logger.info("🔄 Using sequential processing");
+          logger.info("Using sequential processing.");
         }
 
         const config = getConfig();
@@ -89,7 +89,7 @@ export function migrateCommand(): Command {
 
         if (options.parallel !== false) {
           // Use optimized parallel processing pipeline
-          logger.info("🚀 Using optimized parallel processing pipeline");
+          logger.info("Using optimized parallel processing pipeline.");
           processingResult = await optimizedMigrationPipeline(
             patterns,
             options.tsconfig,
@@ -99,9 +99,9 @@ export function migrateCommand(): Command {
           );
         } else {
           // Fallback to original sequential processing
-          logger.info("🔄 Using original sequential processing");
+          logger.info("Using original sequential processing.");
           const files = await scanFiles(patterns, logger);
-          logger.info(`📚 Found ${files.length} files to process`);
+          logger.info(`Found ${files.length} files to process.`);
 
           const project = createProject(files, options.tsconfig, logger);
           processingResult = processFiles(
@@ -118,11 +118,11 @@ export function migrateCommand(): Command {
         // Report processing results
         const processingTime = ((Date.now() - startTime) / 1000).toFixed(2);
         logger.success(
-          `✅ Successfully processed ${successCount} AMA contents in ${processingTime}s`
+          `Successfully processed ${successCount} AMA contents in ${processingTime}s.`
         );
 
         if (failureCount > 0) {
-          logger.warn(`⚠️ Failed to process ${failureCount} items`);
+          logger.warn(`Failed to process ${failureCount} items.`);
           if (options.verbose && errors.length > 0) {
             logger.info("Errors encountered:");
             errors.forEach((err) => logger.error(`  ${err}`));
@@ -136,7 +136,7 @@ export function migrateCommand(): Command {
 
         // Generate and save output
         const outputStartTime = Date.now();
-        logger.info("🔧 Generating output definitions...");
+        logger.info("Generating output definitions...");
         const output = generateOutput(contents, config, logger);
         const outputTime = ((Date.now() - outputStartTime) / 1000).toFixed(2);
         logger.verbose_log(`Output generation took ${outputTime}s`);
@@ -145,7 +145,7 @@ export function migrateCommand(): Command {
 
         // Upload definitions unless dry-run is enabled
         if (!options.dryRun) {
-          logger.info("📤 Uploading definitions to AtMyApp platform");
+          logger.info("Uploading definitions to AtMyApp platform.");
           const uploadStartTime = Date.now();
           const uploadSuccess = await uploadDefinitions(output, config, logger);
           const uploadTime = ((Date.now() - uploadStartTime) / 1000).toFixed(2);
@@ -158,15 +158,15 @@ export function migrateCommand(): Command {
             process.exit(1);
           }
         } else {
-          logger.info("🏁 Dry run mode enabled. Skipping upload to server.");
+          logger.info("Dry run mode enabled. Skipping upload to server.");
         }
 
         const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
-        logger.success(`🎉 Migration completed successfully in ${totalTime}s`);
+        logger.success(`Migration completed successfully in ${totalTime}s.`);
 
         // Performance summary
         if (options.verbose) {
-          logger.info("📊 Performance Summary:");
+          logger.info("Performance summary:");
           logger.info(`  Total time: ${totalTime}s`);
           logger.info(`  Processing time: ${processingTime}s`);
           logger.info(`  Files processed: ${successCount}`);
@@ -181,7 +181,7 @@ export function migrateCommand(): Command {
         const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
         const message =
           error instanceof Error ? error.message : "Unknown error";
-        logger.error(`💥 Fatal error after ${totalTime}s: ${message}`, error);
+        logger.error(`Fatal error after ${totalTime}s: ${message}`, error);
         process.exit(1);
       }
     });

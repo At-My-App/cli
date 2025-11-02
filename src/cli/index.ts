@@ -2,6 +2,8 @@
 import { Command } from "commander";
 import { migrateCommand } from "./commands/migrate";
 import { useCommand } from "./commands/use";
+import { uploadCommand } from "./commands/upload";
+import { generateCommand } from "./commands/generate";
 
 const program = new Command()
   .name("ama")
@@ -10,6 +12,8 @@ const program = new Command()
 
 program.addCommand(useCommand());
 program.addCommand(migrateCommand());
+program.addCommand(uploadCommand());
+program.addCommand(generateCommand());
 
 program.parseAsync(process.argv).catch((err) => {
   console.error("Error:", err.message);

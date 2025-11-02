@@ -1,13 +1,14 @@
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import path from "path";
 
-type Config = {
+export interface AmaConfig {
   token?: string;
   projectId?: string;
+  url?: string;
   include?: string[];
   description?: string;
   args?: Record<string, string>;
-};
+}
 
 const CONFIG_PATH = path.join(process.cwd(), "./.ama/session.json");
 const CONFIG_DIR = path.dirname(CONFIG_PATH);
@@ -24,9 +25,8 @@ function ensureConfigDir(): void {
   }
 }
 
-export function setConfig(config: Config): void {
+export function setConfig(config: AmaConfig): void {
   ensureConfigDir();
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
   try {
     writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
   } catch (error) {
@@ -36,7 +36,7 @@ export function setConfig(config: Config): void {
   }
 }
 
-export function getConfig(): Config {
+export function getConfig(): AmaConfig {
   ensureConfigDir();
   try {
     return JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));

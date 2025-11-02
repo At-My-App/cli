@@ -1,15 +1,26 @@
 import { Command } from "commander";
-import chalk from "chalk";
+import { Logger } from "../logger";
 import { setConfig } from "../utils/config";
 import * as fs from "fs";
 import * as path from "path";
+
+interface UseCommandOptions {
+  token?: string;
+  url?: string;
+  projectId?: string;
+  verbose?: boolean;
+}
 
 export function useCommand(): Command {
   return new Command("use")
     .description("Set authentication token for AMA project")
     .option("-t, --token <token>", "Authentication token")
     .option("-u, --url <url>", "Project base URL")
-    .action(async (options) => {
+    .option("-p, --project-id <id>", "Project identifier override")
+    .option("--verbose", "Enable verbose logging")
+    .action(async (options: UseCommandOptions) => {
+      const logger = new Logger(Boolean(options.verbose));
+
       const rlQuestion = (query: string): Promise<string> => {
         return new Promise((resolve) => {
           const rl = require("readline").createInterface({
@@ -31,10 +42,25 @@ export function useCommand(): Command {
           options.token ||
           (await rlQuestion("Enter the authentication token: "));
 
+        const detectProjectId = (url: string): string | undefined => {
+          const match = url.match(/\/projects\/([^/?#]+)/i);
+          return match?.[1];
+        };
+
+        const detectedProjectId = detectProjectId(projectUrl);
+        const projectId = options.projectId || detectedProjectId;
+
+        if (!projectId) {
+          logger.warn(
+            "Project ID could not be detected from the URL. Rerun with --project-id to set it explicitly."
+          );
+        }
+
         // Create .ama directory if it doesn't exist
         const amaDir = path.join(process.cwd(), ".ama");
         if (!fs.existsSync(amaDir)) {
           fs.mkdirSync(amaDir, { recursive: true });
+          logger.verbose_log(`Created directory ${amaDir}.`);
         }
 
         // Add .gitignore if it doesn't exist or update it
@@ -43,14 +69,15 @@ export function useCommand(): Command {
 
         if (!fs.existsSync(gitignorePath)) {
           fs.writeFileSync(gitignorePath, gitignoreEntry);
+          logger.verbose_log(`Created ${gitignorePath} with AMA ignore rules.`);
         } else {
           const currentContent = fs.readFileSync(gitignorePath, "utf8");
           if (!currentContent.includes(".ama/session.json")) {
             fs.appendFileSync(gitignorePath, gitignoreEntry);
+            logger.verbose_log(`Updated ${gitignorePath} with AMA ignore rules.`);
           }
         }
 
-        const projectId = "proj_" + Math.random().toString(36).slice(2, 9);
         const configData = { token: authToken, projectId, url: projectUrl };
         setConfig(configData);
 
@@ -60,23 +87,16 @@ export function useCommand(): Command {
           JSON.stringify(configData, null, 2)
         );
 
-        console.log(
-          chalk.green("🔐 Successfully authenticated and joined project")
+        logger.success("Authentication details saved for the project.");
+        logger.info(`Session file stored at ${path.join(amaDir, "session.json")}.`);
+        logger.warn(
+          "Keep your .ama/session.json file private and exclude it from version control."
         );
-        console.log(
-          chalk.yellow(
-            "⚠️  Warning: Keep your .ama/session.json file private and do not commit it to version control"
-          )
-        );
-        console.log(
-          chalk.blue(
-            "ℹ️  Note: Session file has been automatically added to .gitignore"
-          )
-        );
+        logger.info("Session file has been added to the project .gitignore file.");
       } catch (error: unknown) {
         const message =
           error instanceof Error ? error.message : "Unknown error";
-        console.error(chalk.red(`❌ Error: ${message}`));
+        logger.error(`Configuration update failed: ${message}`, error);
         process.exit(1);
       }
     });
