@@ -19,6 +19,8 @@
   - [Content Definitions](#content-definitions)
   - [Event Definitions](#event-definitions)
   - [Image & File Definitions](#image--file-definitions)
+  - [Icon Definitions](#icon-definitions)
+  - [MDX Fields](#mdx-fields)
 - [💡 Examples](#-examples)
 - [🔧 Configuration](#-configuration)
 - [🏗️ Architecture](#-architecture)
@@ -290,6 +292,38 @@ export type UserIcon = AmaIconDef<"/icons/user">;
 export type ATMYAPP = [MenuIcon, SearchIcon, UserIcon];
 ```
 
+### MDX Fields
+
+Define MDX (Markdown with JSX) fields with component configurations using `AmaMdxFieldDef`, `AmaMdxConfigDef`, and `AmaComponentDef`:
+
+```typescript
+import {
+  AmaMdxFieldDef,
+  AmaMdxConfigDef,
+  AmaComponentDef,
+} from "@atmyapp/core";
+
+// 1. Define MDX components and their props
+type Callout = AmaComponentDef<"Callout", {
+  title: string;
+  type: "info" | "warning" | "error";
+}>;
+
+// 2. Create an MDX configuration
+type BlogMdxConfig = AmaMdxConfigDef<"blogComponents", [Callout]>;
+
+// 3. Use the config in your content definition
+interface BlogPost {
+  title: string;
+  content: AmaMdxFieldDef<BlogMdxConfig>;
+}
+
+export type BlogPostContent = AmaContentDef<"/blog/posts", BlogPost>;
+
+// 4. Export the configuration and definitions
+export type ATMYAPP = [BlogMdxConfig, BlogPostContent];
+```
+
 ## 💡 Examples
 
 ### 🏪 E-commerce Setup
@@ -364,13 +398,24 @@ import {
   AmaCustomEventDef,
   AmaImageDef,
   AmaIconDef,
+  AmaMdxFieldDef,
+  AmaMdxConfigDef,
+  AmaComponentDef,
 } from "@atmyapp/core";
+
+// MDX Components for blog
+type Callout = AmaComponentDef<"Callout", {
+  title: string;
+  type: "info" | "warning" | "error";
+}>;
+
+type BlogMdxConfig = AmaMdxConfigDef<"blogComponents", [Callout]>;
 
 // Blog content types
 interface BlogPost {
   title: string;
   slug: string;
-  content: string;
+  content: AmaMdxFieldDef<BlogMdxConfig>;
   excerpt: string;
   publishedAt: string;
   author: {
@@ -428,6 +473,7 @@ export type ATMYAPP = [
   BlogPosts,
   FeaturedPost,
   Categories,
+  BlogMdxConfig,
   BlogHeroImage,
   ShareIcon,
   LikeIcon,

@@ -135,8 +135,20 @@ export function generateOutput(
   // Separate events from regular definitions
   const events: Record<string, EventConfig> = {};
   const definitions: Record<string, { structure: any; type?: string }> = {};
+  const mdx: Record<
+    string,
+    { components: Record<string, { props?: Record<string, string> }> }
+  > = {};
 
   transformedContents.forEach((content) => {
+    if (content.type === "mdxConfig") {
+      const name = content.structure?.name;
+      const components = content.structure?.components;
+      if (typeof name === "string" && components && typeof components === "object") {
+        mdx[name] = { components };
+      }
+      return;
+    }
     const contentType = determineContentType(content);
 
     if (contentType === "event") {
@@ -176,6 +188,7 @@ export function generateOutput(
     definitions,
     events,
     args: config.args || {},
+    ...(Object.keys(mdx).length > 0 ? { mdx } : {}),
   };
 
   // Transform the final output through the pipeline

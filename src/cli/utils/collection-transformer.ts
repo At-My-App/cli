@@ -44,6 +44,27 @@ function detectAmaAssetField(
   };
 }
 
+function detectAmaMdxField(
+  schema: JsonSchema
+): { mdxConfig: string } | null {
+  const amaType = schema?.properties?.__amatype?.const;
+  if (amaType !== "AmaMdxDef") {
+    return null;
+  }
+
+  const mdxConfigConst = schema?.properties?.mdxConfig?.const;
+  if (typeof mdxConfigConst === "string") {
+    return { mdxConfig: mdxConfigConst };
+  }
+
+  const mdxConfigEnum = schema?.properties?.mdxConfig?.enum;
+  if (Array.isArray(mdxConfigEnum) && typeof mdxConfigEnum[0] === "string") {
+    return { mdxConfig: mdxConfigEnum[0] };
+  }
+
+  return null;
+}
+
 function ensureDescription(
   description: unknown,
   fallback: string
@@ -84,10 +105,10 @@ function inferType(schema: JsonSchema): string | null {
       type = enumTypes.has("string")
         ? "string"
         : enumTypes.has("number")
-        ? "number"
-        : enumTypes.has("boolean")
-        ? "boolean"
-        : null;
+          ? "number"
+          : enumTypes.has("boolean")
+            ? "boolean"
+            : null;
     }
   }
 
@@ -209,6 +230,23 @@ function convertField(
     return base;
   }
 
+  const mdxField = detectAmaMdxField(schema);
+  if (mdxField) {
+    const description = ensureDescription(
+      schema.description,
+      `Generated description for ${breadcrumb}`
+    );
+
+    return {
+      type: "string",
+      description,
+      format: "mdx",
+      storeInBlob: true,
+      __amatype: "AmaMdxDef",
+      mdxConfig: mdxField.mdxConfig,
+    };
+  }
+
   let type = inferType(schema);
 
   if (!type) {
@@ -308,8 +346,8 @@ function extractIndexes(configSchema: JsonSchema | undefined): (string | string[
 export function isAmaCollectionStructure(structure: unknown): boolean {
   return Boolean(
     structure &&
-      typeof structure === "object" &&
-      (structure as JsonSchema).properties?.__rowType
+    typeof structure === "object" &&
+    (structure as JsonSchema).properties?.__rowType
   );
 }
 

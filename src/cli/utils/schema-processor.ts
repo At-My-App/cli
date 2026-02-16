@@ -5,6 +5,7 @@ import {
   TypeAliasDeclaration,
   ProjectOptions,
   Node,
+  TypeElement,
 } from "ts-morph";
 import * as ts from "typescript";
 import { resolve } from "path";
@@ -12,6 +13,9 @@ import { generateSchema, getProgramFromFiles } from "typescript-json-schema";
 import { existsSync } from "fs";
 import { Logger } from "../logger";
 import { Content, ProcessingResult } from "../types/migrate";
+
+type MdxComponentConfig = { props?: Record<string, string> };
+type MdxConfig = { components: Record<string, MdxComponentConfig> };
 
 // Scans for TypeScript files based on config patterns
 export async function scanFiles(
@@ -54,13 +58,13 @@ export function createProject(
     skipAddingFilesFromTsConfig: true,
     compilerOptions: !existsSync(resolvedTsConfigPath)
       ? {
-          target: ts.ScriptTarget.ESNext,
-          module: ts.ModuleKind.ESNext,
-          moduleResolution: ts.ModuleResolutionKind.NodeJs,
-          esModuleInterop: true,
-          jsx: ts.JsxEmit.React,
-          skipLibCheck: true,
-        }
+        target: ts.ScriptTarget.ESNext,
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.NodeJs,
+        esModuleInterop: true,
+        jsx: ts.JsxEmit.React,
+        skipLibCheck: true,
+      }
       : undefined,
   };
 
@@ -206,6 +210,265 @@ function extractEventInfoFromAST(
   }
 }
 
+function getTypeAliasByName(
+  file: SourceFile,
+  name: string
+): TypeAliasDeclaration | undefined {
+  const project = file.getProject();
+  for (const sourceFile of project.getSourceFiles()) {
+    const alias = sourceFile.getTypeAlias(name);
+    if (alias) {
+      return alias;
+    }
+  }
+  return undefined;
+}
+
+function extractStringLiteral(typeNode: Node): string | null {
+  if (!Node.isLiteralTypeNode(typeNode)) {
+    return null;
+  }
+  const literal = typeNode.getLiteral();
+  return Node.isStringLiteral(literal) ? literal.getLiteralValue() : null;
+}
+
+function mapPrimitiveType(typeNode: Node): string | null {
+  switch (typeNode.getKind()) {
+    case ts.SyntaxKind.StringKeyword:
+      return "string";
+    case ts.SyntaxKind.NumberKeyword:
+      return "number";
+    case ts.SyntaxKind.BooleanKeyword:
+      return "boolean";
+    case ts.SyntaxKind.ObjectKeyword:
+      return "object";
+    default:
+      break;
+  }
+
+  if (Node.isLiteralTypeNode(typeNode)) {
+    const literal = typeNode.getLiteral();
+    if (Node.isStringLiteral(literal)) {
+      return "string";
+    }
+    if (Node.isNumericLiteral(literal)) {
+      return "number";
+    }
+    if (literal.getKind() === ts.SyntaxKind.TrueKeyword || literal.getKind() === ts.SyntaxKind.FalseKeyword) {
+      return "boolean";
+    }
+  }
+
+  return null;
+}
+
+function mapPropType(typeNode: Node, file: SourceFile): string {
+  if (Node.isUnionTypeNode(typeNode)) {
+    const nonNullable = typeNode
+      .getTypeNodes()
+      .filter(
+        (node) =>
+          node.getKind() !== ts.SyntaxKind.UndefinedKeyword &&
+          node.getKind() !== ts.SyntaxKind.NullKeyword
+      );
+    if (nonNullable.length === 1) {
+      return mapPropType(nonNullable[0], file);
+    }
+    return "object";
+  }
+
+  if (Node.isArrayTypeNode(typeNode)) {
+    const elementType = mapPrimitiveType(typeNode.getElementTypeNode());
+    return elementType ? `${elementType}[]` : "object";
+  }
+
+  if (Node.isTypeReference(typeNode)) {
+    const typeName = typeNode.getTypeName();
+    if (Node.isIdentifier(typeName) && typeName.getText() === "Array") {
+      const args = typeNode.getTypeArguments();
+      if (args.length > 0) {
+        const elementType = mapPrimitiveType(args[0]);
+        return elementType ? `${elementType}[]` : "object";
+      }
+    }
+    return "object";
+  }
+
+  if (Node.isTypeLiteral(typeNode)) {
+    return "object";
+  }
+
+  return mapPrimitiveType(typeNode) ?? "object";
+}
+
+function extractPropsFromTypeNode(
+  typeNode: Node | undefined,
+  file: SourceFile
+): Record<string, string> | undefined {
+  if (!typeNode) {
+    return undefined;
+  }
+
+  if (Node.isTypeReference(typeNode)) {
+    const typeName = typeNode.getTypeName();
+    if (Node.isIdentifier(typeName)) {
+      const alias = getTypeAliasByName(file, typeName.getText());
+      if (alias) {
+        return extractPropsFromTypeNode(alias.getTypeNode(), file);
+      }
+    }
+  }
+
+  if (!Node.isTypeLiteral(typeNode)) {
+    return undefined;
+  }
+
+  const props: Record<string, string> = {};
+  typeNode.getMembers().forEach((member: TypeElement) => {
+    if (!Node.isPropertySignature(member)) {
+      return;
+    }
+    const name = member.getName();
+    const propTypeNode = member.getTypeNode();
+    if (!propTypeNode || typeof name !== "string" || name.length === 0) {
+      return;
+    }
+    props[name] = mapPropType(propTypeNode, file);
+  });
+
+  return Object.keys(props).length > 0 ? props : undefined;
+}
+
+function extractComponentFromTypeNode(
+  typeNode: Node,
+  file: SourceFile,
+  logger: Logger
+): { name: string; props?: Record<string, string> } | null {
+  if (!Node.isTypeReference(typeNode)) {
+    return null;
+  }
+
+  const typeName = typeNode.getTypeName();
+  if (!Node.isIdentifier(typeName)) {
+    return null;
+  }
+
+  const typeNameText = typeName.getText();
+  if (typeNameText !== "AmaComponentDef") {
+    const alias = getTypeAliasByName(file, typeNameText);
+    if (!alias) {
+      return null;
+    }
+    const aliasTypeNode = alias.getTypeNode();
+    if (!aliasTypeNode) {
+      return null;
+    }
+    return extractComponentFromTypeNode(aliasTypeNode, file, logger);
+  }
+
+  const typeArguments = typeNode.getTypeArguments();
+  if (typeArguments.length === 0) {
+    return null;
+  }
+
+  const componentName = extractStringLiteral(typeArguments[0]);
+  if (!componentName) {
+    logger.warn(`MDX component name is not a string literal in ${file.getFilePath()}`);
+    return null;
+  }
+
+  const props = extractPropsFromTypeNode(typeArguments[1], file);
+  return {
+    name: componentName,
+    ...(props ? { props } : {}),
+  };
+}
+
+function extractMdxConfigsFromAST(
+  file: SourceFile,
+  logger: Logger
+): Record<string, MdxConfig> {
+  const configs: Record<string, MdxConfig> = {};
+
+  file.getTypeAliases().forEach((alias) => {
+    const typeNode = alias.getTypeNode();
+    if (!typeNode || !Node.isTypeReference(typeNode)) {
+      return;
+    }
+
+    const typeName = typeNode.getTypeName();
+    if (!Node.isIdentifier(typeName) || typeName.getText() !== "AmaMdxConfigDef") {
+      return;
+    }
+
+    const typeArguments = typeNode.getTypeArguments();
+    if (typeArguments.length < 2) {
+      return;
+    }
+
+    const configName = extractStringLiteral(typeArguments[0]);
+    if (!configName) {
+      logger.warn(`MDX config name is not a string literal in ${file.getFilePath()}`);
+      return;
+    }
+
+    const componentsArg = typeArguments[1];
+    const componentTypeNodes: Node[] = [];
+
+    if (Node.isTupleTypeNode(componentsArg)) {
+      componentTypeNodes.push(...componentsArg.getElements());
+    } else if (Node.isArrayTypeNode(componentsArg)) {
+      componentTypeNodes.push(componentsArg.getElementTypeNode());
+    }
+
+    if (componentTypeNodes.length === 0) {
+      configs[configName] = { components: {} };
+      return;
+    }
+
+    const components: Record<string, MdxComponentConfig> = {};
+
+    componentTypeNodes.forEach((componentNode) => {
+      const component = extractComponentFromTypeNode(componentNode, file, logger);
+      if (!component) {
+        return;
+      }
+      components[component.name] = component.props ? { props: component.props } : {};
+    });
+
+    configs[configName] = { components };
+  });
+
+  return configs;
+}
+
+export function extractMdxConfigsFromSourceFiles(
+  sourceFiles: SourceFile[],
+  logger: Logger
+): Content[] {
+  const mergedConfigs: Record<string, MdxConfig> = {};
+
+  sourceFiles.forEach((file) => {
+    const fileConfigs = extractMdxConfigsFromAST(file, logger);
+    Object.entries(fileConfigs).forEach(([name, config]) => {
+      if (mergedConfigs[name]) {
+        logger.warn(`Duplicate MDX config "${name}" found in ${file.getFilePath()}`);
+        return;
+      }
+      mergedConfigs[name] = config;
+    });
+  });
+
+  return Object.entries(mergedConfigs).map(([name, config]) => ({
+    path: `__mdx_config__/${name}`,
+    structure: {
+      name,
+      components: config.components,
+    },
+    type: "mdxConfig",
+  }));
+}
+
 // Processes an ATMYAPP export to extract content definitions
 export function processAtmyappExport(
   atmyappType: TypeAliasDeclaration,
@@ -231,13 +494,13 @@ export function processAtmyappExport(
   const compilerOptions = existsSync(resolvedTsConfigPath)
     ? { configFile: resolvedTsConfigPath }
     : {
-        target: ts.ScriptTarget.ES2015,
-        module: ts.ModuleKind.ESNext,
-        strict: true,
-        esModuleInterop: true,
-        skipLibCheck: true,
-        jsx: ts.JsxEmit.Preserve,
-      };
+      target: ts.ScriptTarget.ES2015,
+      module: ts.ModuleKind.ESNext,
+      strict: true,
+      esModuleInterop: true,
+      skipLibCheck: true,
+      jsx: ts.JsxEmit.Preserve,
+    };
 
   const program = getProgramFromFiles([file.getFilePath()], compilerOptions);
 
@@ -470,9 +733,8 @@ export function processFiles(
         );
       } catch (err) {
         failureCount++;
-        const errorMessage = `❌ ${file.getFilePath()} - ATMYAPP export - ${
-          err instanceof Error ? err.message : "Unknown error"
-        }`;
+        const errorMessage = `❌ ${file.getFilePath()} - ATMYAPP export - ${err instanceof Error ? err.message : "Unknown error"
+          }`;
         errors.push(errorMessage);
         logger.error(errorMessage);
 
@@ -482,6 +744,12 @@ export function processFiles(
       }
     });
   });
+
+  const mdxConfigs = extractMdxConfigsFromSourceFiles(sourceFiles, logger);
+  if (mdxConfigs.length > 0) {
+    contents.push(...mdxConfigs);
+    successCount += mdxConfigs.length;
+  }
 
   return { contents, errors, successCount, failureCount };
 }

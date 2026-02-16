@@ -119,6 +119,17 @@ export async function processFilesParallel(
     throw error;
   }
 
+  const { createProject, extractMdxConfigsFromSourceFiles } = require("./schema-processor");
+  const project = createProject(relevantFiles, tsconfigPath, logger);
+  const mdxConfigs = extractMdxConfigsFromSourceFiles(
+    project.getSourceFiles(),
+    logger
+  );
+  if (mdxConfigs.length > 0) {
+    contents.push(...mdxConfigs);
+    successCount += mdxConfigs.length;
+  }
+
   return { contents, errors, successCount, failureCount };
 }
 
@@ -147,7 +158,10 @@ async function filterRelevantFiles(
         const content = await fs.readFile(file, "utf8");
 
         // Simple regex to check for ATMYAPP exports
-        if (/export\s+type\s+ATMYAPP\s*=/.test(content)) {
+        if (
+          /export\s+type\s+ATMYAPP\s*=/.test(content) ||
+          /AmaMdxConfigDef/.test(content)
+        ) {
           return file;
         }
 

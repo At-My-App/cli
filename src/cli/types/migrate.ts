@@ -14,6 +14,7 @@ export interface OutputDefinition {
   events: Record<string, EventConfig>;
   args: any[];
   metadata?: any;
+  mdx?: Record<string, { components: Record<string, { props?: Record<string, string> }> }>;
 }
 
 export interface MigrateOptions {

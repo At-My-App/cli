@@ -113,7 +113,8 @@ describe("Integration Tests", () => {
       // Should have processed all found contents (some as definitions, some as events)
       const totalProcessed =
         Object.keys(output.definitions).length +
-        Object.keys(output.events).length;
+        Object.keys(output.events).length +
+        (output.mdx ? Object.keys(output.mdx).length : 0);
       expect(totalProcessed).toBe(processingResult.contents.length);
     });
 
@@ -134,7 +135,8 @@ describe("Integration Tests", () => {
       // Verify validation worked - total processed should equal input
       const totalProcessed =
         Object.keys(output.definitions).length +
-        Object.keys(output.events).length;
+        Object.keys(output.events).length +
+        (output.mdx ? Object.keys(output.mdx).length : 0);
       expect(totalProcessed).toBe(processingResult.contents.length);
 
       // All definition paths should be normalized

@@ -345,7 +345,7 @@ describe("Definition Examples Tests", () => {
       const patterns = ["tests/definitions/**/*.ts"];
       const files = await scanFiles(patterns, mockLogger);
 
-      expect(files).toHaveLength(3);
+      expect(files).toHaveLength(4);
 
       const project = createProject(files, "tsconfig.json", mockLogger);
       const processingResult = processFiles(
@@ -355,9 +355,9 @@ describe("Definition Examples Tests", () => {
         mockLogger
       );
 
-      expect(processingResult.successCount).toBe(9); // 5 content + 4 events
+      expect(processingResult.successCount).toBe(11); // 7 content + 4 events
       expect(processingResult.failureCount).toBe(0);
-      expect(processingResult.contents).toHaveLength(9);
+      expect(processingResult.contents).toHaveLength(11);
     });
 
     it("should generate combined output with both definitions and events", async () => {
@@ -382,10 +382,10 @@ describe("Definition Examples Tests", () => {
 
       expect(output.description).toBe("Combined Definitions Test");
 
-      expect(Object.keys(output.definitions)).toHaveLength(5);
+      expect(Object.keys(output.definitions)).toHaveLength(6);
       expect(Object.keys(output.events)).toHaveLength(4);
 
-      expect(output.metadata).toHaveProperty("totalDefinitions", 5);
+      expect(output.metadata).toHaveProperty("totalDefinitions", 6);
       expect(output.metadata).toHaveProperty("totalEvents", 4);
 
       const definitionPaths = Object.keys(output.definitions);
@@ -480,7 +480,7 @@ describe("Definition Examples Tests", () => {
       const output = generateOutput(processingResult.contents, {}, mockLogger);
 
       expect(output.definitions).not.toHaveProperty("pages/about.json");
-      expect(Object.keys(output.definitions)).toHaveLength(4);
+      expect(Object.keys(output.definitions)).toHaveLength(5);
       expect(Object.keys(output.events)).toHaveLength(4);
     });
   });
