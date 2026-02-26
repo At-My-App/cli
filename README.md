@@ -304,10 +304,13 @@ import {
 } from "@atmyapp/core";
 
 // 1. Define MDX components and their props
-type Callout = AmaComponentDef<"Callout", {
-  title: string;
-  type: "info" | "warning" | "error";
-}>;
+type Callout = AmaComponentDef<
+  "Callout",
+  {
+    title: string;
+    type: "info" | "warning" | "error";
+  }
+>;
 
 // 2. Create an MDX configuration
 type BlogMdxConfig = AmaMdxConfigDef<"blogComponents", [Callout]>;
@@ -404,10 +407,13 @@ import {
 } from "@atmyapp/core";
 
 // MDX Components for blog
-type Callout = AmaComponentDef<"Callout", {
-  title: string;
-  type: "info" | "warning" | "error";
-}>;
+type Callout = AmaComponentDef<
+  "Callout",
+  {
+    title: string;
+    type: "info" | "warning" | "error";
+  }
+>;
 
 type BlogMdxConfig = AmaMdxConfigDef<"blogComponents", [Callout]>;
 
@@ -560,19 +566,36 @@ The CLI automatically manages configuration through the `.ama` directory:
 
 ### Custom Configuration
 
+You can configure migration behavior with a top-level project file:
+
+- `atmyapp.config.ts`
+- `atmyapp.config.js`
+
+If both files exist, the CLI loads `atmyapp.config.ts` first.
+
+> Invalid project config fails fast with a clear error so issues are caught before migration starts.
+
 ```typescript
-// ama.config.ts (optional)
-export default {
+// atmyapp.config.ts
+import type { AtMyAppConfig } from "@atmyapp/core";
+
+const config: AtMyAppConfig = {
   include: ["src/**/*.ts", "types/**/*.ts"],
-  exclude: ["**/*.test.ts"],
   description: "My Project Definitions",
+  args: {
+    usesAtMyAppHeadConfig: true,
+  },
   metadata: {
     version: "1.0.0",
     author: "Your Name",
     environment: process.env.NODE_ENV,
   },
 };
+
+export default config;
 ```
+
+Session auth values (`token`, `projectId`, `url`) continue to come from `.ama/session.json`.
 
 ## 🏗️ Architecture
 

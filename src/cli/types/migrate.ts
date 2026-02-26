@@ -12,9 +12,12 @@ export interface OutputDefinition {
   description: string;
   definitions: Record<string, { structure: any; type?: string }>;
   events: Record<string, EventConfig>;
-  args: any[];
+  args: Record<string, unknown>;
   metadata?: any;
-  mdx?: Record<string, { components: Record<string, { props?: Record<string, string> }> }>;
+  mdx?: Record<
+    string,
+    { components: Record<string, { props?: Record<string, string> }> }
+  >;
 }
 
 export interface MigrateOptions {

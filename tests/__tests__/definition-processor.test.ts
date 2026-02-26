@@ -34,7 +34,7 @@ describe("Definition Processor", () => {
       const result = definitionPipeline.processDefinitions(
         [content],
         {},
-        mockLogger
+        mockLogger,
       );
 
       expect(mockProcessor.process).toHaveBeenCalledWith(
@@ -44,7 +44,7 @@ describe("Definition Processor", () => {
           config: {},
           allContents: [content],
           currentIndex: 0,
-        })
+        }),
       );
 
       expect(result.processedContents).toHaveLength(1);
@@ -71,7 +71,7 @@ describe("Definition Processor", () => {
       const result = definitionPipeline.processDefinitions(
         [content],
         {},
-        mockLogger
+        mockLogger,
       );
 
       expect(mockValidator.validate).toHaveBeenCalled();
@@ -92,13 +92,13 @@ describe("Definition Processor", () => {
         description: "Test",
         definitions: {},
         events: {},
-        args: [],
+        args: {},
       };
 
       const result = definitionPipeline.transformOutput(
         baseOutput,
         {},
-        mockLogger
+        mockLogger,
       );
 
       expect(mockTransformer.transform).toHaveBeenCalled();
@@ -123,7 +123,7 @@ describe("Definition Processor", () => {
       const result = definitionPipeline.processDefinitions(
         [content],
         {},
-        mockLogger
+        mockLogger,
       );
 
       expect(result.processedContents).toHaveLength(0);
@@ -322,7 +322,7 @@ describe("Definition Processor", () => {
             config: {},
             allContents,
             currentIndex: 1,
-          }
+          },
         );
 
         expect(result.isValid).toBe(false);
@@ -341,7 +341,7 @@ describe("Definition Processor", () => {
             config: {},
             allContents,
             currentIndex: 1,
-          }
+          },
         );
 
         expect(result.isValid).toBe(true);
@@ -360,7 +360,7 @@ describe("Definition Processor", () => {
             "test2.json": { structure: {}, type: "jsonx" },
           },
           events: {},
-          args: [],
+          args: {},
         };
 
         const result = builtInOutputTransformers.metadataEnricher.transform(
@@ -370,7 +370,7 @@ describe("Definition Processor", () => {
             config: {},
             allContents: [],
             currentIndex: 0,
-          }
+          },
         );
 
         expect(result).toHaveProperty("metadata");
@@ -384,7 +384,7 @@ describe("Definition Processor", () => {
           description: "Test",
           definitions: {},
           events: {},
-          args: [],
+          args: {},
         };
 
         const config = {
@@ -401,7 +401,7 @@ describe("Definition Processor", () => {
             config,
             allContents: [],
             currentIndex: 0,
-          }
+          },
         );
 
         expect(result.metadata).toHaveProperty("customField", "customValue");

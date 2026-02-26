@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import {
-  getConfig,
+  getMigrateConfig,
   Logger,
   MigrateOptions,
   scanFiles,
@@ -41,25 +41,25 @@ export function migrateCommand(): Command {
     .option(
       "--dry-run",
       "Generate definitions without uploading to server",
-      false
+      false,
     )
     .option("--verbose", "Enable verbose logging", false)
     .option("--tsconfig <path>", "Path to tsconfig.json", "tsconfig.json")
     .option(
       "--continue-on-error",
       "Continue processing even if some files fail",
-      false
+      false,
     )
     .option(
       "--parallel",
       "Enable parallel processing using worker threads (default: true)",
-      true
+      true,
     )
     .option(
       "--max-workers <number>",
       "Maximum number of worker threads (default: CPU cores, max 8)",
       (value) => parseInt(value),
-      undefined
+      undefined,
     )
     .option("--no-filtering", "Disable file pre-filtering optimization", false)
     .action(async (options: EnhancedMigrateOptions) => {
@@ -79,7 +79,7 @@ export function migrateCommand(): Command {
           logger.info("Using sequential processing.");
         }
 
-        const config = getConfig();
+        const config = getMigrateConfig();
         const patterns = config.include || ["**/*.ts", "**/*.tsx"];
 
         // Create .ama directory if it doesn't exist
@@ -95,7 +95,7 @@ export function migrateCommand(): Command {
             options.tsconfig,
             options.continueOnError,
             logger,
-            options.maxWorkers
+            options.maxWorkers,
           );
         } else {
           // Fallback to original sequential processing
@@ -108,7 +108,7 @@ export function migrateCommand(): Command {
             project.getSourceFiles(),
             options.tsconfig,
             options.continueOnError,
-            logger
+            logger,
           );
         }
 
@@ -118,7 +118,7 @@ export function migrateCommand(): Command {
         // Report processing results
         const processingTime = ((Date.now() - startTime) / 1000).toFixed(2);
         logger.success(
-          `Successfully processed ${successCount} AMA contents in ${processingTime}s.`
+          `Successfully processed ${successCount} AMA contents in ${processingTime}s.`,
         );
 
         if (failureCount > 0) {
@@ -153,7 +153,7 @@ export function migrateCommand(): Command {
 
           if (!uploadSuccess) {
             logger.warn(
-              "Upload failed, but definitions were generated successfully"
+              "Upload failed, but definitions were generated successfully",
             );
             process.exit(1);
           }
@@ -171,7 +171,7 @@ export function migrateCommand(): Command {
           logger.info(`  Processing time: ${processingTime}s`);
           logger.info(`  Files processed: ${successCount}`);
           logger.info(
-            `  Processing mode: ${options.parallel !== false ? "Parallel" : "Sequential"}`
+            `  Processing mode: ${options.parallel !== false ? "Parallel" : "Sequential"}`,
           );
           if (options.parallel !== false && options.maxWorkers) {
             logger.info(`  Worker threads: ${options.maxWorkers}`);
