@@ -7,6 +7,9 @@ import {
   createProject,
   processFiles,
   generateOutput,
+  findCanonicalSchemaFile,
+  loadCanonicalSchemaFile,
+  generateOutputFromCanonicalSchema,
   ensureAmaDirectory,
   saveOutputToFile,
   uploadDefinitions,
@@ -85,61 +88,77 @@ export function migrateCommand(): Command {
         // Create .ama directory if it doesn't exist
         ensureAmaDirectory(logger);
 
-        let processingResult;
+        const canonicalSchemaFile = await findCanonicalSchemaFile(logger);
+        let output;
+        let processingTime = "0.00";
+        let successCount = 0;
 
-        if (options.parallel !== false) {
-          // Use optimized parallel processing pipeline
-          logger.info("Using optimized parallel processing pipeline.");
-          processingResult = await optimizedMigrationPipeline(
-            patterns,
-            options.tsconfig,
-            options.continueOnError,
-            logger,
-            options.maxWorkers,
+        if (canonicalSchemaFile) {
+          const schema = await loadCanonicalSchemaFile(canonicalSchemaFile, logger);
+          output = generateOutputFromCanonicalSchema(schema, config as Record<string, unknown>);
+          processingTime = ((Date.now() - startTime) / 1000).toFixed(2);
+          successCount = Object.keys(output.definitions).length;
+          logger.success(
+            `Loaded ${Object.keys(output.definitions).length} definitions from canonical schema.`,
           );
         } else {
-          // Fallback to original sequential processing
-          logger.info("Using original sequential processing.");
-          const files = await scanFiles(patterns, logger);
-          logger.info(`Found ${files.length} files to process.`);
+          let processingResult;
 
-          const project = createProject(files, options.tsconfig, logger);
-          processingResult = processFiles(
-            project.getSourceFiles(),
-            options.tsconfig,
-            options.continueOnError,
-            logger,
-          );
-        }
+          if (options.parallel !== false) {
+            // Use optimized parallel processing pipeline
+            logger.info("Using optimized parallel processing pipeline.");
+            processingResult = await optimizedMigrationPipeline(
+              patterns,
+              options.tsconfig,
+              options.continueOnError,
+              logger,
+              options.maxWorkers,
+            );
+          } else {
+            // Fallback to original sequential processing
+            logger.info("Using original sequential processing.");
+            const files = await scanFiles(patterns, logger);
+            logger.info(`Found ${files.length} files to process.`);
 
-        const { contents, errors, successCount, failureCount } =
-          processingResult;
-
-        // Report processing results
-        const processingTime = ((Date.now() - startTime) / 1000).toFixed(2);
-        logger.success(
-          `Successfully processed ${successCount} AMA contents in ${processingTime}s.`,
-        );
-
-        if (failureCount > 0) {
-          logger.warn(`Failed to process ${failureCount} items.`);
-          if (options.verbose && errors.length > 0) {
-            logger.info("Errors encountered:");
-            errors.forEach((err) => logger.error(`  ${err}`));
+            const project = createProject(files, options.tsconfig, logger);
+            processingResult = processFiles(
+              project.getSourceFiles(),
+              options.tsconfig,
+              options.continueOnError,
+              logger,
+            );
           }
-        }
 
-        if (contents.length === 0) {
-          logger.error("No valid AMA contents found. Exiting.");
-          process.exit(1);
-        }
+          const { contents, errors, successCount: processedCount, failureCount } =
+            processingResult;
 
-        // Generate and save output
-        const outputStartTime = Date.now();
-        logger.info("Generating output definitions...");
-        const output = generateOutput(contents, config, logger);
-        const outputTime = ((Date.now() - outputStartTime) / 1000).toFixed(2);
-        logger.verbose_log(`Output generation took ${outputTime}s`);
+          // Report processing results
+          processingTime = ((Date.now() - startTime) / 1000).toFixed(2);
+          successCount = processedCount;
+          logger.success(
+            `Successfully processed ${successCount} AMA contents in ${processingTime}s.`,
+          );
+
+          if (failureCount > 0) {
+            logger.warn(`Failed to process ${failureCount} items.`);
+            if (options.verbose && errors.length > 0) {
+              logger.info("Errors encountered:");
+              errors.forEach((err) => logger.error(`  ${err}`));
+            }
+          }
+
+          if (contents.length === 0) {
+            logger.error("No valid AMA contents found. Exiting.");
+            process.exit(1);
+          }
+
+          // Generate and save output
+          const outputStartTime = Date.now();
+          logger.info("Generating output definitions...");
+          output = generateOutput(contents, config, logger);
+          const outputTime = ((Date.now() - outputStartTime) / 1000).toFixed(2);
+          logger.verbose_log(`Output generation took ${outputTime}s`);
+        }
 
         saveOutputToFile(output, logger);
 

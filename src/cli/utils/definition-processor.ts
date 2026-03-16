@@ -242,6 +242,9 @@ export const builtInProcessors = {
       } else if (["pdf", "doc", "docx", "txt", "md"].includes(fileExt || "")) {
         content.type = "file";
       } else {
+        // COMPAT(legacy-authoring): preserve the historic `jsonx` output label
+        // for non-canonical authoring flows until all callers switch to
+        // `ama.schema.*` canonical schemas.
         content.type = "jsonx";
       }
 

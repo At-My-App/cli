@@ -3,6 +3,7 @@ export * from "./config";
 export * from "./type-transformers";
 export * from "./schema-processor";
 export * from "./content-processor";
+export * from "./canonical-schema";
 export * from "./file-operations";
 export * from "./upload";
 export * from "./definition-processor";

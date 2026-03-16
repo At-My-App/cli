@@ -60,12 +60,50 @@ pnpm add -g @atmyapp/cli
 # 1. Authenticate with your AtMyApp project
 ama use --token your-api-token --url https://your-project.atmyapp.com
 
-# 2. Migrate your definitions with parallel processing
+# 2. Migrate your canonical schema or legacy definitions
 ama migrate
 
 # 3. Or run in dry-run mode to preview changes
 ama migrate --dry-run --verbose
 ```
+
+## 🧭 Preferred Workflow
+
+The CLI now supports two schema flows:
+
+- preferred: canonical schema files such as `ama.schema.ts` or `ama.schema.json`
+- compatibility: legacy TypeScript extraction from exported AMA definition types
+
+Recommended setup for new projects:
+
+```ts
+// ama.schema.ts
+import { defineCollection, defineDocument, defineSchema, s } from "@atmyapp/structure";
+
+export default defineSchema({
+  definitions: {
+    posts: defineCollection({
+      fields: {
+        title: s.string(),
+        cover: s.image(),
+      },
+    }),
+    settings: defineDocument({
+      fields: {
+        theme: s.string(),
+      },
+    }),
+  },
+});
+```
+
+Then run:
+
+```bash
+ama migrate
+```
+
+The CLI will compile the canonical schema through `@atmyapp/structure` and produce the compatibility `.structure.json` payload expected by the current platform rollout.
 
 ## 📚 Commands
 

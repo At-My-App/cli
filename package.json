@@ -40,6 +40,7 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@atmyapp/structure": "^0.0.1",
     "@better-fetch/fetch": "^1.1.18",
     "chalk": "^4.1.2",
     "commander": "^14.0.0",

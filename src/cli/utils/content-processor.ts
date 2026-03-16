@@ -1,5 +1,6 @@
 import { Logger } from "../logger";
 import { Content, OutputDefinition, EventConfig } from "../types/migrate";
+import { compileSchema, validateSchemaDocument } from "@atmyapp/structure";
 import { processSpecialTypes } from "./type-transformers";
 import {
   definitionPipeline,
@@ -52,7 +53,9 @@ export function determineContentType(content: Content): string {
     return "file";
   }
 
-  // Default type for other content
+  // COMPAT(legacy-authoring): the legacy pipeline still emits `jsonx` as the
+  // serialized structure type for single structured files. Canonical schemas
+  // should use `document`; this fallback remains for older TS authoring flows.
   return "jsonx";
 }
 
@@ -88,6 +91,47 @@ function extractEventConfig(content: Content): EventConfig | null {
     // Silent failure, let the caller handle
   }
   return null;
+}
+
+function mergeStructureExtras<T>(normalized: T, original: T): T {
+  if (
+    !normalized ||
+    !original ||
+    typeof normalized !== "object" ||
+    typeof original !== "object" ||
+    Array.isArray(normalized) ||
+    Array.isArray(original)
+  ) {
+    return normalized;
+  }
+
+  const merged: Record<string, unknown> = {
+    ...(normalized as Record<string, unknown>),
+  };
+
+  for (const [key, value] of Object.entries(original as Record<string, unknown>)) {
+    if (!(key in merged)) {
+      merged[key] = value;
+      continue;
+    }
+
+    const normalizedValue = merged[key];
+    if (
+      normalizedValue &&
+      value &&
+      typeof normalizedValue === "object" &&
+      typeof value === "object" &&
+      !Array.isArray(normalizedValue) &&
+      !Array.isArray(value)
+    ) {
+      merged[key] = mergeStructureExtras(
+        normalizedValue as Record<string, unknown>,
+        value as Record<string, unknown>
+      );
+    }
+  }
+
+  return merged as T;
 }
 
 // Generates the final output definition using the processing pipeline
@@ -134,7 +178,7 @@ export function generateOutput(
 
   // Separate events from regular definitions
   const events: Record<string, EventConfig> = {};
-  const definitions: Record<string, { structure: any; type?: string }> = {};
+  const definitions: OutputDefinition["definitions"] = {};
   const mdx: Record<
     string,
     { components: Record<string, { props?: Record<string, string> }> }
@@ -176,6 +220,10 @@ export function generateOutput(
     } else {
       // Regular definition
       definitions[content.path] = {
+        description:
+          typeof content.structure?.description === "string"
+            ? content.structure.description
+            : undefined,
         type: content.type,
         structure: content.structure,
       };
@@ -199,6 +247,56 @@ export function generateOutput(
     logger
   );
 
+  const hasDefinitions = Object.keys(finalOutput.definitions || {}).length > 0;
+  let normalizedOutput: OutputDefinition = finalOutput;
+
+  if (hasDefinitions) {
+    const schemaOnlyOutput = {
+      description: finalOutput.description,
+      definitions: finalOutput.definitions,
+      args: finalOutput.args,
+      mdx: finalOutput.mdx,
+    };
+
+    const normalizedStructure = compileSchema(schemaOnlyOutput as any).legacyStructure;
+    const normalizedDefinitions = Object.fromEntries(
+      Object.entries(normalizedStructure.definitions || {}).map(([path, definition]) => {
+        const originalDefinition = finalOutput.definitions[path];
+        if (!originalDefinition) {
+          return [path, definition];
+        }
+
+        return [
+          path,
+          {
+            ...definition,
+            ...originalDefinition,
+            structure: mergeStructureExtras(
+              (definition as OutputDefinition["definitions"][string]).structure,
+              originalDefinition.structure
+            ),
+          },
+        ];
+      })
+    ) as OutputDefinition["definitions"];
+
+    normalizedOutput = {
+      ...finalOutput,
+      description: normalizedStructure.description || finalOutput.description,
+      definitions: normalizedDefinitions,
+      args: normalizedStructure.args || finalOutput.args,
+      mdx: normalizedStructure.mdx || finalOutput.mdx,
+    };
+
+    const validation = validateSchemaDocument(schemaOnlyOutput as any);
+    if (!validation.valid) {
+      const messages = validation.issues
+        .map((issue) => `${issue.path}: ${issue.message}`)
+        .join("; ");
+      throw new Error(`Generated schema is invalid: ${messages}`);
+    }
+  }
+
   // Log pipeline statistics
   const stats = definitionPipeline.getStats();
   logger.verbose_log(
@@ -206,10 +304,10 @@ export function generateOutput(
   );
 
   logger.verbose_log(
-    `Generated ${Object.keys(finalOutput.definitions).length} definitions and ${Object.keys(finalOutput.events).length} events`
+    `Generated ${Object.keys(normalizedOutput.definitions).length} definitions and ${Object.keys(normalizedOutput.events).length} events`
   );
 
-  return finalOutput;
+  return normalizedOutput;
 }
 
 // Export pipeline for external access and customization
