@@ -1,6 +1,10 @@
 import { Command } from "commander";
 import { Logger } from "../logger";
 import { setConfig } from "../utils/config";
+import {
+  detectProjectIdFromUrl,
+  verifyCliAuthentication,
+} from "../utils/http";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -36,25 +40,42 @@ export function useCommand(): Command {
 
       try {
         // Prompt user for URL and token if not provided
-        const projectUrl =
-          options.url || (await rlQuestion("Enter the project URL: "));
-        const authToken =
+        const projectUrl = (
+          options.url || (await rlQuestion("Enter the project URL: "))
+        ).trim();
+        const authToken = (
           options.token ||
-          (await rlQuestion("Enter the authentication token: "));
+          (await rlQuestion("Enter the authentication token: "))
+        ).trim();
 
-        const detectProjectId = (url: string): string | undefined => {
-          const match = url.match(/\/projects\/([^/?#]+)/i);
-          return match?.[1];
-        };
+        if (!projectUrl) {
+          throw new Error("Project URL is required.");
+        }
 
-        const detectedProjectId = detectProjectId(projectUrl);
-        const projectId = options.projectId || detectedProjectId;
+        if (!authToken) {
+          throw new Error("Authentication token is required.");
+        }
 
-        if (!projectId) {
-          logger.warn(
-            "Project ID could not be detected from the URL. Rerun with --project-id to set it explicitly."
+        logger.info("Verifying CLI authentication...");
+
+        const verifiedAuth = await verifyCliAuthentication({
+          url: projectUrl,
+          token: authToken,
+        });
+
+        const detectedProjectId = detectProjectIdFromUrl(projectUrl);
+        const requestedProjectId = options.projectId || detectedProjectId;
+
+        if (
+          requestedProjectId &&
+          requestedProjectId !== verifiedAuth.projectId
+        ) {
+          throw new Error(
+            `CLI key belongs to project '${verifiedAuth.projectId}', but '${requestedProjectId}' was provided in the URL or --project-id option.`
           );
         }
+
+        const projectId = verifiedAuth.projectId;
 
         // Create .ama directory if it doesn't exist
         const amaDir = path.join(process.cwd(), ".ama");
@@ -87,6 +108,9 @@ export function useCommand(): Command {
           JSON.stringify(configData, null, 2)
         );
 
+        logger.success(
+          `CLI authentication verified for project '${projectId}' (${verifiedAuth.keyName}).`
+        );
         logger.success("Authentication details saved for the project.");
         logger.info(`Session file stored at ${path.join(amaDir, "session.json")}.`);
         logger.warn(
