@@ -10,6 +10,16 @@ interface LevelConfig {
   method: ConsoleMethod;
 }
 
+export interface LogEntry {
+  level: LogLevel;
+  message: string;
+}
+
+interface LoggerOptions {
+  silent?: boolean;
+  onLog?: (entry: LogEntry) => void;
+}
+
 const LEVEL_CONFIG: Record<LogLevel, LevelConfig> = {
   info: { label: "INFO", style: (text) => chalk.blueBright.bold(text), method: "log" },
   success: { label: "SUCCESS", style: (text) => chalk.greenBright.bold(text), method: "log" },
@@ -23,9 +33,13 @@ const LEVEL_CONFIG: Record<LogLevel, LevelConfig> = {
  */
 export class Logger {
   private readonly verbose: boolean;
+  private readonly silent: boolean;
+  private readonly onLog?: (entry: LogEntry) => void;
 
-  constructor(verbose: boolean) {
+  constructor(verbose: boolean, options: LoggerOptions = {}) {
     this.verbose = verbose;
+    this.silent = options.silent ?? false;
+    this.onLog = options.onLog;
   }
 
   info(message: string): void {
@@ -55,6 +69,12 @@ export class Logger {
   }
 
   private write(level: LogLevel, message: string): void {
+    this.onLog?.({ level, message });
+
+    if (this.silent) {
+      return;
+    }
+
     const { label, style, method } = LEVEL_CONFIG[level];
     const rawLabel = `[${label}]`;
     const styledLabel = style(rawLabel);

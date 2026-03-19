@@ -1,4 +1,12 @@
 import { createFetch } from "@better-fetch/fetch";
+export {
+  buildCliAuthVerifyUrl,
+  verifyCliAuthentication,
+} from "../../runtime/auth";
+export type {
+  VerifiedCliAuth,
+  VerifyCliAuthResponseBody,
+} from "../../runtime/auth";
 import { getConfig, type AmaConfig } from "./config";
 
 export interface AmaSession {
@@ -29,21 +37,6 @@ export interface StreamSseOptions<T = unknown> {
   fetchInit?: RequestInit;
   signal?: AbortSignal;
   onEvent: (event: SseEvent<T>) => void | Promise<void>;
-}
-
-export interface VerifyCliAuthResponseBody {
-  success: boolean;
-  data: {
-    valid: boolean;
-    projectId: string;
-    keyName: string;
-  } | null;
-  error: string;
-}
-
-export interface VerifiedCliAuth {
-  projectId: string;
-  keyName: string;
 }
 
 export function resolveSession(overrides: SessionOverrides = {}): AmaSession {
@@ -99,69 +92,6 @@ export function createAmaFetch(session: AmaSession) {
 export function detectProjectIdFromUrl(url: string): string | undefined {
   const match = url.match(/\/projects\/([^/?#]+)/i);
   return match?.[1];
-}
-
-export function buildCliAuthVerifyUrl(url: string): string {
-  const parsedUrl = new URL(stripTrailingSlashes(url));
-  parsedUrl.search = "";
-  parsedUrl.hash = "";
-  const pathSegments = parsedUrl.pathname.split("/").filter(Boolean);
-  const projectSegmentIndex = pathSegments.findIndex(
-    (segment) => segment === "projects"
-  );
-
-  if (
-    projectSegmentIndex !== -1 &&
-    pathSegments[projectSegmentIndex + 1]
-  ) {
-    const preservedSegments = pathSegments.slice(0, projectSegmentIndex);
-    parsedUrl.pathname =
-      preservedSegments.length > 0 ? `/${preservedSegments.join("/")}` : "/";
-  }
-
-  return new URL(
-    "v0/cli-keys/auth/verify",
-    ensureTrailingSlash(stripTrailingSlashes(parsedUrl.toString()))
-  ).toString();
-}
-
-export async function verifyCliAuthentication(options: {
-  url: string;
-  token: string;
-}): Promise<VerifiedCliAuth> {
-  const verifyUrl = buildCliAuthVerifyUrl(options.url);
-  const response = await fetch(verifyUrl, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${options.token}`,
-    },
-  });
-
-  let responseBody: VerifyCliAuthResponseBody | null = null;
-
-  try {
-    responseBody = (await response.json()) as VerifyCliAuthResponseBody;
-  } catch (error) {
-    responseBody = null;
-  }
-
-  if (!response.ok) {
-    const errorMessage =
-      responseBody?.error ||
-      (await safeReadText(response)) ||
-      `CLI authentication failed with status ${response.status}.`;
-
-    throw new Error(errorMessage);
-  }
-
-  if (!responseBody?.success || !responseBody.data?.valid) {
-    throw new Error(responseBody?.error || "CLI authentication failed.");
-  }
-
-  return {
-    projectId: responseBody.data.projectId,
-    keyName: responseBody.data.keyName,
-  };
 }
 
 export function projectUrl(

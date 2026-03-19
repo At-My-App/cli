@@ -1,15 +1,13 @@
 import fg from "fast-glob";
-import { readFile, rm, writeFile } from "fs/promises";
-import { basename, dirname, extname, join, resolve } from "path";
-import { pathToFileURL } from "url";
-import ts from "typescript";
-import {
-  compileSchema,
-  type SchemaDocument,
-  validateSchemaDocument,
-} from "@atmyapp/structure";
+import { readFile } from "fs/promises";
+import { resolve } from "path";
+import { type SchemaDocument } from "@atmyapp/structure";
 import { Logger } from "../logger";
 import { OutputDefinition } from "../types/migrate";
+import {
+  compileCanonicalSource,
+  generateLegacyOutput,
+} from "../../runtime";
 
 const CANONICAL_SCHEMA_PATTERNS = [
   "ama.schema.ts",
@@ -18,57 +16,6 @@ const CANONICAL_SCHEMA_PATTERNS = [
   "ama.schema.mjs",
   "ama.schema.json",
 ];
-
-function buildMetadata(
-  output: OutputDefinition,
-  config: Record<string, unknown>
-): OutputDefinition["metadata"] {
-  return {
-    generatedAt: new Date().toISOString(),
-    totalDefinitions: Object.keys(output.definitions).length,
-    totalEvents: Object.keys(output.events).length,
-    version: "1.0.0",
-    ...(config.metadata && typeof config.metadata === "object"
-      ? config.metadata
-      : {}),
-  };
-}
-
-function getSchemaFromModule(moduleExports: Record<string, unknown>): unknown {
-  return (
-    moduleExports.default ||
-    moduleExports.schema ||
-    moduleExports.ATMYAPP_SCHEMA ||
-    null
-  );
-}
-
-async function importTypeScriptModule(filePath: string): Promise<unknown> {
-  const source = await readFile(filePath, "utf8");
-  const transpiled = ts.transpileModule(source, {
-    compilerOptions: {
-      target: ts.ScriptTarget.ES2020,
-      module: ts.ModuleKind.CommonJS,
-      moduleResolution: ts.ModuleResolutionKind.NodeJs,
-      esModuleInterop: true,
-      resolveJsonModule: true,
-    },
-    fileName: filePath,
-  });
-
-  const tempFile = join(
-    dirname(filePath),
-    `.${basename(filePath, extname(filePath))}.atmyapp-structure.cjs`
-  );
-
-  try {
-    await writeFile(tempFile, transpiled.outputText, "utf8");
-    delete require.cache[require.resolve(tempFile)];
-    return require(tempFile);
-  } finally {
-    await rm(tempFile, { force: true });
-  }
-}
 
 export async function findCanonicalSchemaFile(
   logger: Logger,
@@ -102,65 +49,32 @@ export async function loadCanonicalSchemaFile(
   const resolvedPath = resolve(filePath);
   logger.info(`Using canonical schema from ${resolvedPath}`);
 
-  let schemaValue: unknown;
-  if (resolvedPath.endsWith(".json")) {
-    schemaValue = JSON.parse(await readFile(resolvedPath, "utf8"));
-  } else if (resolvedPath.endsWith(".ts") || resolvedPath.endsWith(".mts")) {
-    const moduleExports = (await importTypeScriptModule(resolvedPath)) as Record<
-      string,
-      unknown
-    >;
-    schemaValue = getSchemaFromModule(moduleExports);
-  } else if (resolvedPath.endsWith(".mjs")) {
-    const moduleExports = (await import(
-      `${pathToFileURL(resolvedPath).href}?t=${Date.now()}`
-    )) as Record<string, unknown>;
-    schemaValue = getSchemaFromModule(moduleExports);
-  } else {
-    const moduleExports = require(resolvedPath) as Record<string, unknown>;
-    schemaValue = getSchemaFromModule(moduleExports);
-  }
+  const source = await readFile(resolvedPath, "utf8");
+  const compiled = compileCanonicalSource({
+    filename: resolvedPath,
+    code: source,
+  });
 
-  if (!schemaValue || typeof schemaValue !== "object") {
+  if (!compiled.schema) {
     throw new Error(
-      `Canonical schema file ${resolvedPath} must export a schema as default, 'schema', or 'ATMYAPP_SCHEMA'`
+      compiled.errors[0] ??
+        `Could not load canonical schema file ${resolvedPath}`,
     );
   }
 
-  const validation = validateSchemaDocument(schemaValue as SchemaDocument);
-  if (!validation.valid) {
-    const messages = validation.issues
+  if (!compiled.validation.valid) {
+    const messages = compiled.validation.issues
       .map((issue) => `${issue.path}: ${issue.message}`)
       .join("; ");
     throw new Error(`Canonical schema is invalid: ${messages}`);
   }
 
-  return schemaValue as SchemaDocument;
+  return compiled.schema;
 }
 
 export function generateOutputFromCanonicalSchema(
   schema: SchemaDocument,
   config: Record<string, unknown>
 ): OutputDefinition {
-  const compiled = compileSchema(schema);
-  const output: OutputDefinition = {
-    description:
-      compiled.legacyStructure.description ||
-      (typeof config.description === "string"
-        ? config.description
-        : "AMA Definitions"),
-    definitions:
-      compiled.legacyStructure.definitions as OutputDefinition["definitions"],
-    events: ((((compiled.legacyStructure as any).events ||
-      (schema as any).events) ??
-      {}) as OutputDefinition["events"]),
-    args: (compiled.legacyStructure.args || {}) as Record<string, unknown>,
-    ...(compiled.legacyStructure.mdx
-      ? { mdx: compiled.legacyStructure.mdx as OutputDefinition["mdx"] }
-      : {}),
-  };
-
-  output.metadata = buildMetadata(output, config);
-
-  return output;
+  return generateLegacyOutput(schema, config);
 }

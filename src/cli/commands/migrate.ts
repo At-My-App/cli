@@ -9,7 +9,6 @@ import {
   generateOutput,
   findCanonicalSchemaFile,
   loadCanonicalSchemaFile,
-  generateOutputFromCanonicalSchema,
   ensureAmaDirectory,
   saveOutputToFile,
   uploadDefinitions,
@@ -20,6 +19,7 @@ import {
   OutputTransformer,
 } from "../utils";
 import { optimizedMigrationPipeline } from "../utils/parallel-schema-processor";
+import { runCanonicalMigrate } from "../../runtime";
 
 // Re-export functions for external use and customization
 export { registerTypeTransformer };
@@ -95,7 +95,16 @@ export function migrateCommand(): Command {
 
         if (canonicalSchemaFile) {
           const schema = await loadCanonicalSchemaFile(canonicalSchemaFile, logger);
-          output = generateOutputFromCanonicalSchema(schema, config as Record<string, unknown>);
+          const migrateResult = await runCanonicalMigrate({
+            schema,
+            config: config as Record<string, unknown>,
+            dryRun: options.dryRun,
+            upload: false,
+            url: (config as Record<string, unknown>).url as string | undefined,
+            token: (config as Record<string, unknown>).token as string | undefined,
+            verbose: options.verbose,
+          });
+          output = migrateResult.output;
           processingTime = ((Date.now() - startTime) / 1000).toFixed(2);
           successCount = Object.keys(output.definitions).length;
           logger.success(

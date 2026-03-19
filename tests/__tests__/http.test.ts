@@ -29,6 +29,14 @@ describe("CLI auth helpers", () => {
     ).toBe("https://edge.atmyapp.com/v0/cli-keys/auth/verify");
   });
 
+  it("does not duplicate /v0 when the project URL already includes it", () => {
+    expect(
+      buildCliAuthVerifyUrl(
+        "http://localhost:8585/v0/projects/project-123"
+      )
+    ).toBe("http://localhost:8585/v0/cli-keys/auth/verify");
+  });
+
   it("returns the verified project info on success", async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,
