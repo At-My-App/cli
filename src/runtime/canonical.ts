@@ -41,12 +41,7 @@ function detectFormat(
 }
 
 function getSchemaFromModule(moduleExports: Record<string, unknown>): unknown {
-  return (
-    moduleExports.default ||
-    moduleExports.schema ||
-    moduleExports.ATMYAPP_SCHEMA ||
-    null
-  );
+  return moduleExports.default || moduleExports.schema || null;
 }
 
 function buildMetadata(
@@ -160,9 +155,6 @@ export function loadCanonicalModuleValue({
       if (specifier === "@atmyapp/structure") {
         return require("@atmyapp/structure");
       }
-      if (specifier === "@atmyapp/core") {
-        return require("@atmyapp/core");
-      }
 
       throw new Error(
         `Unsupported import "${specifier}" in ${filename}. Use the helper for local or non-AtMyApp imports.`,
@@ -198,7 +190,7 @@ export function compileCanonicalSource(
     if (!rawValue || typeof rawValue !== "object") {
       const error =
         `Canonical schema file ${input.filename} must export a schema as default, ` +
-        `'schema', or 'ATMYAPP_SCHEMA'`;
+        `'schema'`;
       errors.push(error);
       return {
         validation: {

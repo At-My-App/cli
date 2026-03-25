@@ -17,7 +17,7 @@ interface UseCommandOptions {
 
 export function useCommand(): Command {
   return new Command("use")
-    .description("Set authentication token for AMA project")
+    .description("Set authentication token for an AtMyApp project")
     .option("-t, --token <token>", "Authentication token")
     .option("-u, --url <url>", "Project base URL")
     .option("-p, --project-id <id>", "Project identifier override")
@@ -86,16 +86,16 @@ export function useCommand(): Command {
 
         // Add .gitignore if it doesn't exist or update it
         const gitignorePath = path.join(process.cwd(), ".gitignore");
-        const gitignoreEntry = "\n# AMA configuration\n.ama/session.json\n";
+        const gitignoreEntry = "\n# AtMyApp configuration\n.ama/session.json\n";
 
         if (!fs.existsSync(gitignorePath)) {
           fs.writeFileSync(gitignorePath, gitignoreEntry);
-          logger.verbose_log(`Created ${gitignorePath} with AMA ignore rules.`);
+          logger.verbose_log(`Created ${gitignorePath} with AtMyApp ignore rules.`);
         } else {
           const currentContent = fs.readFileSync(gitignorePath, "utf8");
           if (!currentContent.includes(".ama/session.json")) {
             fs.appendFileSync(gitignorePath, gitignoreEntry);
-            logger.verbose_log(`Updated ${gitignorePath} with AMA ignore rules.`);
+            logger.verbose_log(`Updated ${gitignorePath} with AtMyApp ignore rules.`);
           }
         }
 

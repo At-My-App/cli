@@ -24,8 +24,6 @@ export interface OutputDefinition {
 export interface MigrateOptions {
   dryRun: boolean;
   verbose: boolean;
-  tsconfig: string;
-  continueOnError: boolean;
 }
 
 export interface TypeTransformer {

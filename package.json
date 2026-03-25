@@ -1,6 +1,6 @@
 {
   "name": "@atmyapp/cli",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -38,7 +38,6 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "@atmyapp/core": "^0.1.0-alpha.1",
     "@types/jest": "^29.5.14",
     "@typescript-eslint/eslint-plugin": "^8.32.1",
     "@typescript-eslint/parser": "^8.32.1",
@@ -50,14 +49,12 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@atmyapp/structure": "^0.0.1",
+    "@atmyapp/core": "^0.1.0",
+    "@atmyapp/structure": "^0.1.0",
     "@better-fetch/fetch": "^1.1.18",
     "chalk": "^4.1.2",
     "commander": "^14.0.0",
     "fast-glob": "^3.3.3",
-    "jiti": "^2.4.2",
-    "path": "^0.12.7",
-    "ts-morph": "^26.0.0",
-    "typescript-json-schema": "^0.65.1"
+    "jiti": "^2.4.2"
   }
 }

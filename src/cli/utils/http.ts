@@ -15,6 +15,19 @@ export interface AmaSession {
   url: string;
 }
 
+export interface ProjectEnvironment {
+  id: number;
+  name: string;
+  projectId: string;
+}
+
+export interface ProjectApiKey {
+  id: string;
+  name: string;
+  projectId: string;
+  environment_id: number;
+}
+
 export interface SessionOverrides {
   token?: string;
   projectId?: string;
@@ -39,15 +52,23 @@ export interface StreamSseOptions<T = unknown> {
   onEvent: (event: SseEvent<T>) => void | Promise<void>;
 }
 
+interface ApiResponseBody<T> {
+  success: boolean;
+  data: T | null;
+  error: string;
+}
+
 export function resolveSession(overrides: SessionOverrides = {}): AmaSession {
-  let config: AmaConfig;
+  let config: AmaConfig = {};
 
   try {
     config = getConfig();
   } catch (error) {
-    throw new Error(
-      "AMA session not configured. Run 'ama use' first or supply --url, --token, and --project-id options."
-    );
+    if (!overrides.token && !overrides.url && !overrides.projectId) {
+      throw new Error(
+        "AtMyApp session not configured. Run 'atmyapp use' first or supply --url, --token, and --project-id options."
+      );
+    }
   }
 
   const token = overrides.token ?? config.token;
@@ -56,13 +77,13 @@ export function resolveSession(overrides: SessionOverrides = {}): AmaSession {
 
   if (!token) {
     throw new Error(
-      "Authentication token is missing. Run 'ama use' or provide it with --token."
+      "Authentication token is missing. Run 'atmyapp use' or provide it with --token."
     );
   }
 
   if (!url) {
     throw new Error(
-      "Project URL is missing. Run 'ama use' or provide it with --url."
+      "Project URL is missing. Run 'atmyapp use' or provide it with --url."
     );
   }
 
@@ -87,6 +108,39 @@ export function createAmaFetch(session: AmaSession) {
     },
     throw: false,
   });
+}
+
+export function buildProjectApiUrl(
+  url: string,
+  projectId: string,
+  subPath: string,
+): string {
+  const parsedUrl = new URL(stripTrailingSlashes(url));
+  parsedUrl.search = "";
+  parsedUrl.hash = "";
+
+  const pathSegments = parsedUrl.pathname.split("/").filter(Boolean);
+  const projectSegmentIndex = pathSegments.findIndex(
+    (segment) => segment === "projects",
+  );
+  const baseSegments =
+    projectSegmentIndex !== -1 && pathSegments[projectSegmentIndex + 1]
+      ? pathSegments.slice(0, projectSegmentIndex)
+      : pathSegments;
+  const hasV0 = baseSegments[baseSegments.length - 1] === "v0";
+  const cleanSubPath = subPath.replace(/^\/+/, "");
+
+  parsedUrl.pathname = `/${[
+    ...baseSegments,
+    ...(hasV0 ? [] : ["v0"]),
+    "projects",
+    projectId,
+    cleanSubPath,
+  ]
+    .filter(Boolean)
+    .join("/")}`;
+
+  return parsedUrl.toString();
 }
 
 export function detectProjectIdFromUrl(url: string): string | undefined {
@@ -121,6 +175,94 @@ export function projectUrl(
   }
 
   return url.toString();
+}
+
+async function getJsonResponse<T>(
+  response: Response,
+): Promise<ApiResponseBody<T> | null> {
+  try {
+    return (await response.json()) as ApiResponseBody<T>;
+  } catch {
+    return null;
+  }
+}
+
+function getFetchImplementation(fetchImplementation?: typeof fetch): typeof fetch {
+  const fetchApi = fetchImplementation ?? globalThis.fetch;
+  if (typeof fetchApi !== "function") {
+    throw new Error("Fetch is not available in this runtime.");
+  }
+
+  return fetchApi;
+}
+
+export async function listProjectEnvironments(options: {
+  url: string;
+  token: string;
+  projectId: string;
+  fetchImplementation?: typeof fetch;
+}): Promise<ProjectEnvironment[]> {
+  const fetchApi = getFetchImplementation(options.fetchImplementation);
+  const requestUrl = buildProjectApiUrl(
+    options.url,
+    options.projectId,
+    "environments",
+  );
+  const response = await fetchApi(requestUrl, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${options.token}`,
+    },
+  });
+
+  const responseBody = await getJsonResponse<ProjectEnvironment[]>(response);
+
+  if (!response.ok || !responseBody?.success || !responseBody.data) {
+    throw new Error(
+      responseBody?.error ||
+        `Failed to list environments (status ${response.status}).`,
+    );
+  }
+
+  return responseBody.data;
+}
+
+export async function createProjectApiKey(options: {
+  url: string;
+  token: string;
+  projectId: string;
+  name: string;
+  environmentId: number;
+  fetchImplementation?: typeof fetch;
+}): Promise<ProjectApiKey> {
+  const fetchApi = getFetchImplementation(options.fetchImplementation);
+  const requestUrl = buildProjectApiUrl(
+    options.url,
+    options.projectId,
+    "api-keys/create",
+  );
+  const response = await fetchApi(requestUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${options.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: options.name,
+      environment_id: options.environmentId,
+    }),
+  });
+
+  const responseBody = await getJsonResponse<ProjectApiKey>(response);
+
+  if (!response.ok || !responseBody?.success || !responseBody.data) {
+    throw new Error(
+      responseBody?.error ||
+        `Failed to create API key (status ${response.status}).`,
+    );
+  }
+
+  return responseBody.data;
 }
 
 export async function streamSse<T = unknown>(

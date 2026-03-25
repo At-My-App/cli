@@ -39,12 +39,11 @@ describe("project configuration loading", () => {
     const projectRoot = createTempProject();
     writeFileSync(
       path.join(projectRoot, "atmyapp.config.js"),
-      "module.exports = { include: ['src/**/*.ts'], args: { usesAtMyAppHeadConfig: true } };\n"
+      "module.exports = { args: { usesAtMyAppHeadConfig: true } };\n"
     );
 
     const config = loadProjectConfig(projectRoot);
 
-    expect(config.include).toEqual(["src/**/*.ts"]);
     expect(config.args).toEqual({ usesAtMyAppHeadConfig: true });
   });
 
@@ -80,7 +79,6 @@ describe("project configuration loading", () => {
           token: "session-token",
           projectId: "project-123",
           url: "https://edge.atmyapp.com/projects/project-123",
-          include: ["legacy/**/*.ts"],
           description: "Legacy description",
           args: {
             legacyOnly: true,
@@ -100,7 +98,6 @@ describe("project configuration loading", () => {
       path.join(projectRoot, "atmyapp.config.js"),
       [
         "module.exports = {",
-        "  include: ['src/**/*.ts'],",
         "  description: 'Project description',",
         "  args: { usesAtMyAppHeadConfig: true, conflictKey: 'project' },",
         "  metadata: { source: 'project', extra: true }",
@@ -114,7 +111,6 @@ describe("project configuration loading", () => {
     expect(merged.projectId).toBe("project-123");
     expect(merged.url).toBe("https://edge.atmyapp.com/projects/project-123");
 
-    expect(merged.include).toEqual(["src/**/*.ts"]);
     expect(merged.description).toBe("Project description");
 
     expect(merged.args).toEqual({

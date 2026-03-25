@@ -20,7 +20,7 @@ describe("CLI runtime canonical APIs", () => {
 
   it("compiles canonical source without the command layer", () => {
     const result = compileCanonicalSource({
-      filename: "ama.schema.ts",
+      filename: "atmyapp.schema.ts",
       code,
     });
 
@@ -31,9 +31,31 @@ describe("CLI runtime canonical APIs", () => {
     expect(result.errors).toEqual([]);
   });
 
+  it("supports named schema exports", () => {
+    const result = compileCanonicalSource({
+      filename: "atmyapp.schema.ts",
+      code: `
+        import { defineDocument, defineSchema, s } from "@atmyapp/structure";
+
+        export const schema = defineSchema({
+          definitions: {
+            settings: defineDocument({
+              fields: {
+                theme: s.string(),
+              },
+            }),
+          },
+        });
+      `,
+    });
+
+    expect(result.schema?.definitions.settings.kind).toBe("document");
+    expect(result.errors).toEqual([]);
+  });
+
   it("runs canonical migrate in dry-run mode", async () => {
     const compiled = compileCanonicalSource({
-      filename: "ama.schema.ts",
+      filename: "atmyapp.schema.ts",
       code,
     });
 

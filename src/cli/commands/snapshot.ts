@@ -265,7 +265,7 @@ export function snapshotCommand(): Command {
         logger.info(`  Download URL expires: ${data.expiresAt}`);
         logger.info("");
         logger.info("To download this snapshot, run:");
-        logger.info("  ama snapshot download");
+        logger.info("  atmyapp snapshot download");
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unknown error";
