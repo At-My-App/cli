@@ -16,9 +16,4 @@ module.exports = {
   resetMocks: true,
   restoreMocks: true,
   setupFiles: ["<rootDir>/tests/jest-setup.js"],
-  globals: {
-    "ts-jest": {
-      isolatedModules: true,
-    },
-  },
 };

@@ -1,5 +1,6 @@
 import { Logger } from "../logger";
 import { OutputDefinition } from "../types/migrate";
+import { uploadStructure } from "../../runtime";
 
 async function getFetchImplementation(): Promise<typeof fetch> {
   // Use native fetch if available (Node.js 18+)
@@ -34,24 +35,22 @@ export async function uploadDefinitions(
 
   try {
     const fetchApi = await getFetchImplementation();
-    const url = `${(config as any).url}/storage/structure`;
+    const url = (config as any).url as string;
 
-    logger.info(`🔄 Posting definitions to server at ${url}`);
+    logger.info(`🔄 Posting definitions to server at ${url}/storage/structure`);
 
-    const response = await fetchApi(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${(config as any).token}`,
-      },
-      body: JSON.stringify({ content: JSON.stringify(output) }),
+    const response = await uploadStructure({
+      output,
+      url,
+      token: (config as any).token,
+      fetchImplementation: fetchApi,
     });
-    const responseText = await response.text();
-    logger.verbose_log(`Server response: ${responseText}`);
+    logger.verbose_log(`Server response: ${response.body ?? ""}`);
 
-    if (!response.ok) {
+    if (!response.success) {
       throw new Error(
-        `HTTP error! status: ${response.status}, message: ${responseText}`
+        response.error ??
+          `HTTP error! status: ${response.status}, message: ${response.body}`
       );
     }
 

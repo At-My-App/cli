@@ -6,11 +6,12 @@ export interface Content {
 
 export interface EventConfig {
   columns: string[];
+  description?: string;
 }
 
 export interface OutputDefinition {
   description: string;
-  definitions: Record<string, { structure: any; type?: string }>;
+  definitions: Record<string, { structure: any; type?: string; description?: string }>;
   events: Record<string, EventConfig>;
   args: Record<string, unknown>;
   metadata?: any;
@@ -23,8 +24,6 @@ export interface OutputDefinition {
 export interface MigrateOptions {
   dryRun: boolean;
   verbose: boolean;
-  tsconfig: string;
-  continueOnError: boolean;
 }
 
 export interface TypeTransformer {

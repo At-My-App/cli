@@ -7,6 +7,7 @@
     "outDir": "./dist", // Output directory for compiled files
     "rootDir": "./src", // Specify root directory of source files
     "strict": true, // Enable all strict type-checking options
+    "isolatedModules": true,
     "moduleResolution": "nodenext",
     "esModuleInterop": true,
     "skipLibCheck": true, // Skip type checking of all declaration files (*.d.ts).

@@ -7,7 +7,6 @@ export interface AmaConfig {
   token?: string;
   projectId?: string;
   url?: string;
-  include?: string[];
   description?: string;
   args?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
@@ -15,7 +14,7 @@ export interface AmaConfig {
 
 export type AmaProjectConfig = Pick<
   AmaConfig,
-  "include" | "description" | "args" | "metadata"
+  "description" | "args" | "metadata"
 >;
 
 const PROJECT_CONFIG_CANDIDATES = [
@@ -119,7 +118,6 @@ export function getMigrateConfig(cwd: string = process.cwd()): AmaConfig {
 
   return {
     ...sessionConfig,
-    include: projectConfig.include ?? sessionConfig.include,
     description: projectConfig.description ?? sessionConfig.description,
     args: mergeObjects(sessionConfig.args, projectConfig.args),
     metadata: mergeObjects(sessionConfig.metadata, projectConfig.metadata),
@@ -143,19 +141,6 @@ function validateProjectConfig(
   configPath: string,
 ): AmaProjectConfig {
   const config: AmaProjectConfig = {};
-
-  if (value.include !== undefined) {
-    if (
-      !Array.isArray(value.include) ||
-      value.include.some((item) => typeof item !== "string")
-    ) {
-      throw new Error(
-        `Invalid \"include\" in ${configPath}. Expected string[].`,
-      );
-    }
-
-    config.include = value.include;
-  }
 
   if (value.description !== undefined) {
     if (typeof value.description !== "string") {
