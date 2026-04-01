@@ -96,6 +96,49 @@ describe("canonical schema support", () => {
     }
   });
 
+  it("preserves submissions in generated canonical output", () => {
+    const output = generateOutputFromCanonicalSchema(
+      {
+        version: 1,
+        definitions: {},
+        submissions: {
+          contact: {
+            description: "Contact form",
+            fields: {
+              email: {
+                kind: "scalar",
+                scalar: "string",
+                format: "email",
+              },
+            },
+            captcha: {
+              required: true,
+              provider: "hcaptcha",
+              secret: "secret",
+            },
+          },
+        },
+      },
+      {}
+    );
+
+    expect(output.submissions).toEqual({
+      contact: {
+        description: "Contact form",
+        fields: {
+          email: {
+            kind: "scalar",
+            scalar: "string",
+            format: "email",
+          },
+        },
+        requiresCaptcha: true,
+        captchaProvider: "hcaptcha",
+        hcaptchaSecret: "secret",
+      },
+    });
+  });
+
   it("prefers atmyapp.schema over ama.schema when both exist", async () => {
     const dir = mkdtempSync(join(process.cwd(), "test-canonical-prefer-"));
     try {

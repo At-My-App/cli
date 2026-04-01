@@ -46,19 +46,6 @@ function getSchemaFromModule(moduleExports: Record<string, unknown>): unknown {
 }
 
 function loadAtMyAppStructureRuntime(): Record<string, unknown> {
-  const localCandidates = [
-    path.resolve(__dirname, "../../../structure/dist"),
-    path.resolve(__dirname, "../../../structure/dist/index.js"),
-  ];
-
-  for (const candidate of localCandidates) {
-    try {
-      return require(candidate) as Record<string, unknown>;
-    } catch {
-      // Ignore missing local sibling builds and fall back to the installed package.
-    }
-  }
-
   return require("@atmyapp/structure") as Record<string, unknown>;
 }
 
@@ -166,6 +153,12 @@ export function generateLegacyOutput(
     args: (compiled.legacyStructure.args || {}) as Record<string, unknown>,
     ...(compiled.legacyStructure.mdx
       ? { mdx: compiled.legacyStructure.mdx as OutputDefinition["mdx"] }
+      : {}),
+    ...(compiled.legacyStructure.submissions
+      ? {
+          submissions:
+            compiled.legacyStructure.submissions as OutputDefinition["submissions"],
+        }
       : {}),
   };
 

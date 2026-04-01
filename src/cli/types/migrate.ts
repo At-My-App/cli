@@ -9,11 +9,20 @@ export interface EventConfig {
   description?: string;
 }
 
+export interface SubmissionConfig {
+  description?: string;
+  fields: Record<string, unknown>;
+  requiresCaptcha?: boolean;
+  captchaProvider?: string;
+  hcaptchaSecret?: string;
+}
+
 export interface OutputDefinition {
   description: string;
   definitions: Record<string, { structure: any; type?: string; description?: string }>;
   events: Record<string, EventConfig>;
   args: Record<string, unknown>;
+  submissions?: Record<string, SubmissionConfig>;
   metadata?: any;
   mdx?: Record<
     string,

@@ -114,6 +114,48 @@ describe("CLI runtime canonical APIs", () => {
     expect(result.errors).toEqual([]);
   });
 
+  it("includes submissions in generated legacy output", () => {
+    const result = compileCanonicalSource({
+      filename: "atmyapp.schema.ts",
+      code: `
+        import { defineSchema, defineSubmission, s } from "@atmyapp/structure";
+
+        export default defineSchema({
+          definitions: {},
+          submissions: {
+            contact: defineSubmission({
+              description: "Main contact form",
+              fields: {
+                email: s.email(),
+              },
+              captcha: {
+                required: true,
+                provider: "hcaptcha",
+                secret: "secret",
+              },
+            }),
+          },
+        });
+      `,
+    });
+
+    expect(result.output?.submissions).toEqual({
+      contact: {
+        description: "Main contact form",
+        fields: {
+          email: expect.objectContaining({
+            kind: "scalar",
+            scalar: "string",
+            format: "email",
+          }),
+        },
+        requiresCaptcha: true,
+        captchaProvider: "hcaptcha",
+        hcaptchaSecret: "secret",
+      },
+    });
+  });
+
   it("parses destructive migration conflicts from upload responses", async () => {
     const result = await uploadStructure({
       output: {
@@ -205,6 +247,13 @@ describe("CLI runtime canonical APIs", () => {
           definitions: {},
           events: {},
           args: {},
+          submissions: {
+            contact: {
+              description: "Contact form",
+              fields: {},
+              requiresCaptcha: true,
+            },
+          },
         },
         url: "https://edge.atmyapp.test",
         token: "cli-ama-valid",
@@ -230,6 +279,13 @@ describe("CLI runtime canonical APIs", () => {
               definitions: {},
               events: {},
               args: {},
+              submissions: {
+                contact: {
+                  description: "Contact form",
+                  fields: {},
+                  requiresCaptcha: true,
+                },
+              },
             }),
             clear: {
               collections: ["posts"],
@@ -280,6 +336,13 @@ describe("CLI runtime canonical APIs", () => {
           definitions: {},
           events: {},
           args: {},
+          submissions: {
+            contact: {
+              description: "Contact form",
+              fields: {},
+              requiresCaptcha: true,
+            },
+          },
         },
         {
           url: "https://edge.atmyapp.test",
