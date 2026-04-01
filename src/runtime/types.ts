@@ -49,7 +49,48 @@ export interface UploadStructureInput {
   output: OutputDefinition;
   url: string;
   token?: string;
+  clear?: UploadStructureClearRequest;
   fetchImplementation?: typeof fetch;
+}
+
+export interface UploadStructureConflictIssue {
+  kind: string;
+  collectionName?: string;
+  definitionName?: string;
+  columnName?: string;
+  entryCount?: number;
+  blobCount?: number;
+  message: string;
+}
+
+export interface UploadStructureClearRequest {
+  collections: string[];
+  contentFiles: string[];
+  columns: Array<{
+    collection: string;
+    columns: string[];
+  }>;
+}
+
+export interface UploadStructureConflictPrompt {
+  title: string;
+  message: string;
+  actionType: string;
+  definitionName?: string;
+  fieldPath?: string;
+}
+
+export interface UploadStructureConflict {
+  code: string;
+  branch: string;
+  issues: UploadStructureConflictIssue[];
+  suggestedClear: UploadStructureClearRequest;
+  migration?: {
+    changes: unknown[];
+    actions: unknown[];
+    prompts: UploadStructureConflictPrompt[];
+    blocking: boolean;
+  };
 }
 
 export interface UploadStructureResult {
@@ -57,6 +98,8 @@ export interface UploadStructureResult {
   status?: number;
   body?: string;
   error?: string;
+  parsed?: unknown;
+  conflict?: UploadStructureConflict;
 }
 
 export interface RunCanonicalMigrateResult {

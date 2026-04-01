@@ -1,6 +1,10 @@
 import { Logger } from "../logger";
 import { OutputDefinition } from "../types/migrate";
-import { uploadStructure } from "../../runtime";
+import {
+  uploadStructure,
+  type UploadStructureClearRequest,
+  type UploadStructureResult,
+} from "../../runtime";
 
 async function getFetchImplementation(): Promise<typeof fetch> {
   // Use native fetch if available (Node.js 18+)
@@ -24,13 +28,17 @@ async function getFetchImplementation(): Promise<typeof fetch> {
 export async function uploadDefinitions(
   output: OutputDefinition,
   config: any,
-  logger: Logger
-): Promise<boolean> {
+  logger: Logger,
+  clear?: UploadStructureClearRequest,
+): Promise<UploadStructureResult> {
   if (!(config as any).url) {
-    logger.error(
-      "Base URL not provided in session. Please run 'use' command first."
-    );
-    return false;
+    const error =
+      "Base URL not provided in session. Please run 'use' command first.";
+    logger.error(error);
+    return {
+      success: false,
+      error,
+    };
   }
 
   try {
@@ -43,21 +51,33 @@ export async function uploadDefinitions(
       output,
       url,
       token: (config as any).token,
+      clear,
       fetchImplementation: fetchApi,
     });
     logger.verbose_log(`Server response: ${response.body ?? ""}`);
 
     if (!response.success) {
-      throw new Error(
-        response.error ??
-          `HTTP error! status: ${response.status}, message: ${response.body}`
-      );
+      if (!response.conflict) {
+        logger.error(
+          `❌ Failed to post definitions: ${
+            response.error ??
+            `HTTP error! status: ${response.status}, message: ${response.body}`
+          }`
+        );
+      }
+
+      return response;
     }
 
     logger.success("🚀 Successfully posted definitions to storage.");
-    return true;
+    return response;
   } catch (postError) {
+    const error =
+      postError instanceof Error ? postError.message : String(postError);
     logger.error("❌ Failed to post definitions:", postError);
-    return false;
+    return {
+      success: false,
+      error,
+    };
   }
 }

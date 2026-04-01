@@ -1,6 +1,6 @@
 {
   "name": "@atmyapp/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -49,8 +49,8 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@atmyapp/core": "^0.1.0",
-    "@atmyapp/structure": "^0.1.0",
+    "@atmyapp/core": "^0.1.1",
+    "@atmyapp/structure": "^0.1.1",
     "@better-fetch/fetch": "^1.1.18",
     "chalk": "^4.1.2",
     "commander": "^14.0.0",

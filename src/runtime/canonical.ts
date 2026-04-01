@@ -17,6 +17,7 @@ import type {
   CompileCanonicalSourceResult,
   RunCanonicalMigrateInput,
   RunCanonicalMigrateResult,
+  UploadStructureConflict,
   UploadStructureInput,
   UploadStructureResult,
 } from "./types";
@@ -42,6 +43,23 @@ function detectFormat(
 
 function getSchemaFromModule(moduleExports: Record<string, unknown>): unknown {
   return moduleExports.default || moduleExports.schema || null;
+}
+
+function loadAtMyAppStructureRuntime(): Record<string, unknown> {
+  const localCandidates = [
+    path.resolve(__dirname, "../../../structure/dist"),
+    path.resolve(__dirname, "../../../structure/dist/index.js"),
+  ];
+
+  for (const candidate of localCandidates) {
+    try {
+      return require(candidate) as Record<string, unknown>;
+    } catch {
+      // Ignore missing local sibling builds and fall back to the installed package.
+    }
+  }
+
+  return require("@atmyapp/structure") as Record<string, unknown>;
 }
 
 function buildMetadata(
@@ -98,6 +116,37 @@ async function getFetchImplementation(
   }
 }
 
+function parseUploadResponseBody(body: string): unknown {
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseUploadConflict(
+  status: number,
+  parsed: unknown,
+): UploadStructureConflict | undefined {
+  if (status !== 409 || !parsed || typeof parsed !== "object") {
+    return undefined;
+  }
+
+  const data = (parsed as { data?: unknown }).data;
+  if (!data || typeof data !== "object") {
+    return undefined;
+  }
+
+  if (
+    (data as { code?: string }).code !==
+    "DESTRUCTIVE_STRUCTURE_CHANGE_REQUIRES_CLEAR"
+  ) {
+    return undefined;
+  }
+
+  return data as UploadStructureConflict;
+}
+
 export function generateLegacyOutput(
   schema: SchemaDocument,
   config: Record<string, unknown> = {},
@@ -148,12 +197,13 @@ export function loadCanonicalModuleValue({
   });
 
   const module = { exports: {} as Record<string, unknown> };
+  const structureRuntime = loadAtMyAppStructureRuntime();
   const sandbox = {
     module,
     exports: module.exports,
     require: (specifier: string) => {
       if (specifier === "@atmyapp/structure") {
-        return require("@atmyapp/structure");
+        return structureRuntime;
       }
 
       throw new Error(
@@ -267,6 +317,7 @@ export async function uploadStructure({
   output,
   url,
   token,
+  clear,
   fetchImplementation,
 }: UploadStructureInput): Promise<UploadStructureResult> {
   try {
@@ -277,16 +328,27 @@ export async function uploadStructure({
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ content: JSON.stringify(output) }),
+      body: JSON.stringify({
+        content: JSON.stringify(output),
+        ...(clear ? { clear } : {}),
+      }),
     });
     const body = await response.text();
+    const parsed = parseUploadResponseBody(body);
 
     if (!response.ok) {
       return {
         success: false,
         status: response.status,
         body,
-        error: `HTTP error ${response.status}`,
+        parsed,
+        conflict: parseUploadConflict(response.status, parsed),
+        error:
+          (parsed &&
+          typeof parsed === "object" &&
+          typeof (parsed as { error?: unknown }).error === "string"
+            ? (parsed as { error: string }).error
+            : undefined) ?? `HTTP error ${response.status}`,
       };
     }
 
@@ -294,6 +356,7 @@ export async function uploadStructure({
       success: true,
       status: response.status,
       body,
+      parsed,
     };
   } catch (error) {
     return {
@@ -352,6 +415,11 @@ export async function runCanonicalMigrate({
           `Upload failed${uploadResult.status ? ` (${uploadResult.status})` : ""}`;
         errors.push(message);
         logger.error(message);
+        if (uploadResult.conflict) {
+          warnings.push(
+            `Server blocked the migration on branch ${uploadResult.conflict.branch}.`,
+          );
+        }
       }
     }
   } else if (dryRun) {

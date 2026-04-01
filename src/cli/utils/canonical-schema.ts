@@ -69,6 +69,14 @@ export const schema = defineSchema({
         description: s.string({ format: "long", default: "" }),
         ctaLabel: s.string({ default: "Learn more" }),
         ctaHref: s.string({ format: "url", default: "https://example.com" }),
+        seo: s.object({
+          optional: true,
+          description: "Optional SEO metadata",
+          fields: {
+            title: s.string({ optional: true }),
+            description: s.longText({ optional: true }),
+          },
+        }),
       },
     }),
   },
@@ -104,6 +112,17 @@ export const schema = defineSchema({
         content: s.markdown(),
         author: s.string({ default: "Editorial team" }),
         coverImage: s.image({ optional: true }),
+        seo: s.object({
+          optional: true,
+          description: "Optional post SEO metadata",
+          fields: {
+            title: s.string({ optional: true }),
+            socialImages: s.array({
+              optional: true,
+              items: s.image(),
+            }),
+          },
+        }),
         published: s.boolean({ default: false }),
         publishedAt: s.date({ optional: true }),
       },

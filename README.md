@@ -51,6 +51,12 @@ export default defineSchema({
         slug: s.string({ format: "short" }),
         excerpt: s.string({ format: "long", default: "" }),
         cover: s.image({ optional: true }),
+        seo: s.object({
+          optional: true,
+          fields: {
+            title: s.string({ optional: true }),
+          },
+        }),
         publishedAt: s.date({ optional: true }),
       },
     }),
